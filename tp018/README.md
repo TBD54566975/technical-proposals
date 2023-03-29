@@ -48,7 +48,7 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
     "keyEncryption":[{
         "derivationScheme": "protocol | schema | etc",
         "algorithm": "ecies-secp256k1 | etc", // algorithm used to encrypt the symmetric key
-        "encryptedKey": "BASE64URL(Data Encryption Key)"
+        "encryptedKey": "BASE64URL(Encrypted Data Encryption Key)"
       },
       ...
     ]
