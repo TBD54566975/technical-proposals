@@ -42,12 +42,13 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
   },
   "authorization": { ... },
   "encryption": {
-    "algorithm": "A256CTR | etc", // see Open Questions on exact value
-    "initializationVector": "BASE64URL(Initialization Vector)",
+    "algorithm": "A256CTR | etc", // algorithm used to encrypt the data
+    "initializationVector": "BASE64URL(Initialization Vector)", // used by data encryption
+    // encryption of the SAME encryption key using one or more key derivation scheme
     "keyEncryption":[{
         "derivationScheme": "protocol | schema | etc",
-        "algorithm": "ecies-secp256k1 | etc", // see Open Questions on exact value
-        "encryptedKey": "BASE64URL(Content Encryption Key)"
+        "algorithm": "ecies-secp256k1 | etc", // algorithm used to encrypt the symmetric key
+        "encryptedKey": "BASE64URL(Data Encryption Key)"
       },
       ...
     ]
