@@ -57,7 +57,7 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
 
 ```
 
-## Considerations
+## Design Considerations
 1. The proposed schema takes inspiration from the General JWE JSON Serialization specification, however we are unable take a direct dependency on JWE because:
 
    a. JWE requires the encrypted data to be a part of the JWE object, the DWN deliberately decouples the data from the message which only contains the metadata.
@@ -66,9 +66,16 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
 
 1. The schema excludes the use of _Authentication Tag_ commonly used in symmetric encryption algorithm (e.g. `AES-GCM`) and specified in JWE, this is because the `dataCid` already serves the same purpose of message integrity verification. This is why `AES-CTR` is used instead.
 
+1. Should the `authorization` (and `attestation`) property contain an `encryptionCid` property?
+
+   No, there is no obvious benefit to do so and no adverse impact for not doing it.
+
+   By decoupling `encryption` from `authorization`, we leave the door open for the ability for data re-encryption when the DWN owner changes/rolls the encryption asymmetric key published, _without_ needing to temper with `authorization` at all. Granted this will still require additional DWN features/methods.
+
+   However, in the case when the symmetric key needs to be changed/rolled, `authorization` will need to be regenerated because it contains `descriptorCid` which in turn contains the `dataCid` which is dependent on the encrypted data itself.
 
 ## Open Questions
-1. Should `encryptionCid` be added in the `authorization` (and `attestation`) property?
+
 
 1. Is it okay that the signaling of whether the data is encrypted or not is implicit (by the existence of the `encryption` property)?. A negative here without an explicit `encrypted` property is that there is no quick way to tell in a `RecordsQuery` result if a message of a piece of encrypted data is missing `encryption` if `encryption` is stripped from the message.
 
