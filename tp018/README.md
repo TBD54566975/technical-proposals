@@ -23,11 +23,11 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
 
 1. The symmetric key used for data encryption is encrypted using an asymmetric public key derived through a scheme described in [TP17](https://github.com/TBD54566975/technical-proposals/pull/4/files).
 
-1. The encrypted symmetric key (ciphertext) is attached to its corresponding encrypted DWN message.
+1. The encrypted symmetric key (ciphertext) is attached to the corresponding DWN message.
 
-1. The message schema supports attachment of multiple ciphertext of the _same_ symmetric key produced by different key derivation schemes.
+1. The message schema supports attachment of multiple ciphertext of the _same_ symmetric key produced by encryption using different key derivation schemes.
 
-1. There maybe other supported key derivation schemes beyond TP17 in the future.
+1. There may be other supported key derivation schemes beyond TP17 in the future.
 
 1. `dataCid` and `dataSize` are computed against the encrypted data.
 
@@ -47,7 +47,7 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
     // encryption of the SAME encryption key using one or more key derivation scheme
     "keyEncryption":[{
         "derivationScheme": "protocol | schema | etc",
-        "algorithm": "ecies-secp256k1 | etc", // algorithm used to encrypt the symmetric key
+        "algorithm": "ECIES-ES256K | etc", // algorithm used to encrypt the symmetric key
         "encryptedKey": "BASE64URL(Encrypted Data Encryption Key)"
       },
       ...
@@ -74,6 +74,4 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
 
 1. Should we inherited the abbreviated naming style from JWE for properties like `enc` instead of the `algorithm` property?
 
-1. What is the exact `algorithm` value for ECIES using SECP256K1 curve?
-
-1. What is the exact `algorithm` value for AES-256-CTR?
+1. What is the exact `algorithm` value for ECIES using SECP256K1 curve? I invented the string currently based on what is declared in the [JOSE registry](https://www.iana.org/assignments/jose/jose.xhtml).
