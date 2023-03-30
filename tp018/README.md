@@ -60,11 +60,11 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
 ## Considerations
 1. The proposed schema takes inspiration from the General JWE JSON Serialization specification, however we are unable take a direct dependency on JWE because:
 
-   a. JWE requires the encrypted data to be a part of the JWE object, the DWN deliberately decouples the data from the message that only contains the metadata.
+   a. JWE requires the encrypted data to be a part of the JWE object, the DWN deliberately decouples the data from the message which only contains the metadata.
 
-   b. We could potentially encrypt the content encryption symmetric key in a JWE object as the `ciphertext`, but it means that we will be "double encrypting", coupled with use of ECIES, we will have a total 3 layers of symmetric key encryption, which is an unnecessary overhead.
+   b. We could potentially encrypt the data encryption symmetric key in a JWE object as the `ciphertext`, but it means that we will be "double encrypting", coupled with use of ECIES, we will have a total 3 layers of symmetric key, which is an unnecessary overhead.
 
-1. The schema excludes the use of _Authentication Tag_ commonly used in symmetric encryption algorithm (e.g. `AES-GCM`) and specified in JWE, this is because the `dataCid` already serves the same purpose of message integrity verification.
+1. The schema excludes the use of _Authentication Tag_ commonly used in symmetric encryption algorithm (e.g. `AES-GCM`) and specified in JWE, this is because the `dataCid` already serves the same purpose of message integrity verification. This is why `AES-CTR` is used instead.
 
 
 ## Open Questions
