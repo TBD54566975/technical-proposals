@@ -43,12 +43,16 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
   "authorization": { ... },
   "encryption": {
     "algorithm": "A256CTR | etc", // algorithm used to encrypt the data
-    "initializationVector": "BASE64URL(Initialization Vector)", // used by data encryption
+    "initializationVector": "BASE64URL(Unique Initialization Vector)", // used in data encryption
     // encryption of the SAME encryption key using one or more key derivation scheme
     "keyEncryption":[{
         "derivationScheme": "protocol | schema | etc",
         "algorithm": "ECIES-ES256K | etc", // algorithm used to encrypt the symmetric key
-        "encryptedKey": "BASE64URL(Encrypted Data Encryption Key)"
+        "encryptedKey": "BASE64URL(Encrypted Data Encryption Key)",
+        // operational properties dependent on derivation scheme and/or key encryption algorithm:
+        "initializationVector": "BASE64URL(Unique Initialization Vector)", // used in ECIES
+        "messageAuthenticationCode": "BASE64URL(Message Authentication Code)", // used in ECIES
+        "ephemeralPublicKey": "Key in JWK format" // used in ECIES
       },
       ...
     ]
@@ -64,7 +68,13 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
 
    b. We could potentially encrypt the data encryption symmetric key in a JWE object as the `ciphertext`, but it means that we will be "double encrypting", coupled with use of ECIES, we will have a total 3 layers of symmetric key, which is an unnecessary overhead.
 
+
+1. The `algorithm` property adopts values registered in the [JOSE registry](https://www.iana.org/assignments/jose/jose.xhtml) when there is a direct match.
+
 1. The schema excludes the use of _Authentication Tag_ commonly used in symmetric encryption algorithm (e.g. `AES-GCM`) and specified in JWE, this is because the `dataCid` already serves the same purpose of message integrity verification. This is why `AES-CTR` is used instead.
+
+1. The message handler will determine whether a records is encrypted or not implicitly by checking the existence of `encryption` property. 
+
 
 1. Should the `authorization` (and `attestation`) property contain an `encryptionCid` property?
 
@@ -73,12 +83,3 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
    By decoupling `encryption` from `authorization`, we leave the door open for the ability for data re-encryption when the DWN owner changes/rolls the encryption asymmetric key published, _without_ needing to temper with `authorization` at all. Granted this will still require additional DWN features/methods.
 
    However, in the case when the symmetric key needs to be changed/rolled, `authorization` will need to be regenerated because it contains `descriptorCid` which in turn contains the `dataCid` which is dependent on the encrypted data itself.
-
-## Open Questions
-
-
-1. Is it okay that the signaling of whether the data is encrypted or not is implicit (by the existence of the `encryption` property)?. A negative here without an explicit `encrypted` property is that there is no quick way to tell in a `RecordsQuery` result if a message of a piece of encrypted data is missing `encryption` if `encryption` is stripped from the message.
-
-1. Should we inherited the abbreviated naming style from JWE for properties like `enc` instead of the `algorithm` property?
-
-1. What is the exact `algorithm` value for ECIES using SECP256K1 curve? I invented the string currently based on what is declared in the [JOSE registry](https://www.iana.org/assignments/jose/jose.xhtml).
