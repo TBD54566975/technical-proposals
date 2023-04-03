@@ -31,6 +31,7 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
 
 1. `dataCid` and `dataSize` are computed against the encrypted data.
 
+
 ## Proposed Schema
 ```json
 {
@@ -40,7 +41,7 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
     "dataSize": 123, // computed against the encrypted data
     ...
   },
-  "authorization": { ... },
+  "authorization": { must contain encryptionCid },
   "encryption": {
     "algorithm": "A256CTR | etc", // algorithm used to encrypt the data
     "initializationVector": "BASE64URL(Unique Initialization Vector)", // used in data encryption
@@ -75,11 +76,4 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
 
 1. The message handler will determine whether a records is encrypted or not implicitly by checking the existence of `encryption` property. 
 
-
-1. Should the `authorization` (and `attestation`) property contain an `encryptionCid` property?
-
-   No, there is no obvious benefit to do so and no adverse impact for not doing it.
-
-   By decoupling `encryption` from `authorization`, we leave the door open for the ability for data re-encryption when the DWN owner changes/rolls the encryption asymmetric key published, _without_ needing to temper with `authorization` at all. Granted this will still require additional DWN features/methods.
-
-   However, in the case when the symmetric key needs to be changed/rolled, `authorization` will need to be regenerated because it contains `descriptorCid` which in turn contains the `dataCid` which is dependent on the encrypted data itself.
+1. The `authorization` property needs to contain the `encryptionCid` property so that a DWN cannot strip away the `encryption` property and still have the message considered to be valid, resulting in potentially irreversible corrupt state of a record if such message is replicated to all DWN instances of a DID.
