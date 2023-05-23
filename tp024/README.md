@@ -4,7 +4,7 @@
 TP: 24
 Title: TP24 - Participant Authorization in Protocols
 Authors: Henry Tsai (@thehenrytsai)
-Comments URI: https://github.com/TBD54566975/technical-proposals/discussions/5
+Comments URI: https://github.com/TBD54566975/technical-proposals/discussions/8
 Status: Draft
 Created: May 23, 2023
 Updated: May 23, 2023
@@ -14,7 +14,7 @@ Updated: May 23, 2023
 We need a protocol mechanism for enabling multi-party communication such as group chat.
 
 ## Possible Approaches
-Assuming we need to explicitly declare participants, there are a few ways to model it using `RecordsWrite`, using chat as an example:
+Assuming we need to explicitly declare participants, there are a few ways to model it using `RecordsWrite`, using a chat protocol as an example:
 
 1. A `participants` "container" record which is referenced by `participant` child records.
 
@@ -27,7 +27,7 @@ graph TD;
     Message2-->Thread1;
 ```
 
-2. Direct `participant` child records with out the "container". Pro: we can dogfood protocol rules for managing participants.
+2. Direct `participant` child records without the "container". Pro: protocol rules can be reused for managing participants.
 
 ```mermaid
 graph TD;
@@ -117,7 +117,7 @@ Example protocol definition:
 ## Open Questions
 1. Should the `$participant` data be embedded directly within the message like the placement of protocol definition? If so, this would differ from the pattern used by a pure record currently.
 
-1. How can we prevent a participant from modifying their past records after they are removed?
+1. How can we prevent a participant from modifying past records (especially `participant` records) after they are removed?
 
-Probably through the usage of the "snapshot" feature to be spec-ed in a separate Technical Proposal, which would be useful in general, as well as when revoking a permission.
+   Probably through the usage of the "snapshot" feature to be spec-ed in a separate Technical Proposal, which would be useful in general, as well as when revoking a permission.
 
