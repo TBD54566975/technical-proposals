@@ -48,7 +48,23 @@ graph TD;
 
 
 ## Proposal
-Use approach #2
+1. Use approach #2
+1. When a participant is written, the `recipient` is populated with the participant's DID.
+1. When performing protocol authorization, filter `participant` records to :
+
+```javascript
+    const filter = {
+      interface    : DwnInterfaceName.Records,
+      protocol     : 'http://chat-protocol.xyz',
+      protocolPath : 'thread/participant',
+      contextId    : incomingMessage.contextId,
+      schema       : 'http://participant.tbd',
+      recipient    : 'did:example:alice',
+      dateCreated  : {
+        lt  : incomingMessage.dateCreated,
+      };
+    };
+```
 
 Example protocol definition:
 
