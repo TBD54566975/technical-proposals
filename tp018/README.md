@@ -5,9 +5,9 @@ TP: 18
 Title: TP18 - Message Schema for Supporting Message-Level Encryption
 Authors: Henry Tsai (@thehenrytsai)
 Comments URI: https://github.com/TBD54566975/technical-proposals/discussions/5
-Status: Draft
+Status: Accepted
 Created: March 29, 2023
-Updated: March 29, 2023
+Updated: May 24, 2023
 ```
 
 ## Problem Statement
@@ -47,7 +47,7 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
     "initializationVector": "BASE64URL(Unique Initialization Vector)", // used in data encryption
     // encryption of the SAME encryption key using one or more key derivation scheme
     "keyEncryption":[{
-        "rootKeyId": "ID of the root asymmetric key used to derive the public key used for this key encryption"
+        "rootKeyId": "ID of the root asymmetric key used to derive the public key used for this key encryption",
         "derivationScheme": "protocol | schema | etc",
         "algorithm": "ECIES-ES256K | etc", // algorithm used to encrypt the symmetric key
         "encryptedKey": "BASE64URL(Encrypted Data Encryption Key)",
