@@ -47,6 +47,7 @@ The DWeb Node (DWN) message schema needs an update to support message-level encr
     "initializationVector": "BASE64URL(Unique Initialization Vector)", // used in data encryption
     // encryption of the SAME encryption key using one or more key derivation scheme
     "keyEncryption":[{
+        "rootKeyId": "ID of the root asymmetric key used to derive the public key used for this key encryption"
         "derivationScheme": "protocol | schema | etc",
         "algorithm": "ECIES-ES256K | etc", // algorithm used to encrypt the symmetric key
         "encryptedKey": "BASE64URL(Encrypted Data Encryption Key)",
