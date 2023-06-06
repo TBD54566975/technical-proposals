@@ -84,12 +84,14 @@ In order to optimize the efficiency of snapshot creation and message authorizati
 
    All schema-less messages under a particular data format.
 
-The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in by enforcing a message to appear in only one the hierarchy branch; if we allow a more free-formed scoping syntax (based on filters for example), we'd need to have a more complex include-list computation logic and/or iterate over many snapshots for:
+We only need to keep newest snapshot of any given scope.
+
+The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in by enforcing a message to appear in only one the hierarchy branch. if we allow a more free-formed scoping syntax (based on filters for example), we'd need to have a more complex include-list computation logic and/or iterate over many snapshots for:
    1. evaluating if a message under the scope a newly snapshot needs to be kept or removed; and
    1. authorizing a message.
 
 
-It's important to realize that its not possible to create a single 'overall' include-list of message CIDs for authorization purposes, because the appropriate include-list varies based on the timestamp of the received message. As a result, we the include-list of message CIDs much be dynamically composed.
+Note that there may not be a single 'overall' include-list of message CIDs for authorization purposes, because snapshots can be taken with scopes that have no intersection. (e.g. snapshot A with protocol X scope and snapshot B with schema-less data format Y scope)
 
 ### Scope Processing
 
@@ -98,6 +100,17 @@ General rules:
 1. A newer snapshot erases all older snapshots with the same or a descendent scope. (e.g. a newer snapshot with "protocol" scope overwrites all older snapshots with any "protocol path" scope under the same protocol)
 
 1. A newer snapshot invalidates and overwrites messages that are under the same (sub)scope included in any older snapshot with an ancestral scope. (e.g. a newer snapshot with a "protocol path" scope invalidates and overwrites all messages that are under the same "protocol path" included in a parent "protocol" snapshot)
+
+Pseudo-code for `SnapshotsCreate` handling:
+```typescript
+
+// figure out if this snapshot should be ignored or processed
+// TODO:
+
+for (const cid of cidsInSnapshot) {
+  // TODO:
+}
+```
 
 ## Additional Considerations
 
@@ -122,8 +135,8 @@ General rules:
 
 1. The currently proposed structure falls short if there is a need to snapshot a specific protocol context (it's likely there are additional unsupported scenarios). We could introduce support for it under the "protocol" subtree, but that would violate the current design goal of "no intersecting message set in branches".
 
-1. It is be extremely desirable if not necessary for the scoping scheme used in snapshot be compatible to permission scoping and protocol hierarchy, such that messages in a snapshots created can roughly match the scope of permission or path of a protocol feature toggle. It does not make sense functionally and dangerous even for example to allow a snapshot of both protocol-authorized and non-protocol-authorized Records messages with schema `x`. 
+1. It is be extremely desirable if not necessary for the scoping scheme used in snapshot be compatible to permission scoping and protocol hierarchy, such that messages in a snapshots created can roughly match the scope of permission or path of a protocol feature toggle.
 
-   If we allow intersecting scopes, it means we'd need to know the snapshot scopes each messages belongs in at any given time, so that we'd have necessary information when evaluating if a message should be kept or not due to a new snapshot being created. Furthermore, when authorizing a message against the snapshots, we'd need to iterate overall many/all snapshots.
+1. It does not make sense functionally and dangerous even to allow scopes that cuts across both protocol-authorized messages and protocol-less message.
 
 1. It doesn't seem logical to permit the deletion of a snapshot once it's created for authorization purposes. If the snapshot is deleted, the DWeb Node will no longer be able to utilize the deleted snapshot to prevent unauthorized access.
