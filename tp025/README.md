@@ -47,7 +47,7 @@ The payload will simply contain a list of message CIDs, a potential structure:
 
 ### Scoping
 
-In order to optimize the efficiency of snapshot creation and message authorization against snapshots, a snapshot `scope` property can only have a value that maps to a position in the logical tree structure below:
+In order to optimize the efficiency of `SnapshotsCreate` processing, the snapshot `scope` property can only have a value that maps to a position in the logical tree structure below:
 
 ```mermaid
   graph TD;
@@ -59,39 +59,36 @@ In order to optimize the efficiency of snapshot creation and message authorizati
 
 ```
 
-1. `"scope": '' | undefined`
+1. `"scope": "" | undefined`
 
    This means the snapshot is taken at a global scope. ie. any message not included in the snapshot is deleted.
 
-1. `"scope": 'protocols/<protocolUri>'`
+1. `"scope": "protocols/<protocolUri>"`
 
-   All messages under a particular protocol.
+   Messages under a particular protocol.
 
-1. `"scope": 'protocols/<protocolUri>/<protocolPath>'`
+1. `"scope": "protocols/<protocolUri>/<protocolPath>"`
 
-   All messages under a particular protocol path under a protocol.
+   Messages under a particular protocol path under a protocol.
 
-1. `"scope": 'schemas/<schemaUri>'`
+1. `"scope": "schemas/<schemaUri>"`
 
-   All non-protocol messages under a particular schema.
+   Non-protocol messages under a particular schema.
 
-1. `"scope": 'schemas/<schemaUri>/data-formats/<data-format>'`
+1. `"scope": "schemas/<schemaUri>/data-formats/<data-format>"`
 
-   All non-protocol-based messages under a particular schema and data-format.
+   Non-protocol-based messages under a particular schema and data-format.
    Unsure of its practical use, this is mainly for illustration purpose.
 
-1. `"scope": 'data-formats/<data-format>'`
+1. `"scope": "data-formats/<data-format>"`
 
-   All schema-less messages under a particular data format.
+   Schema-less messages under a particular data format.
 
 We only need to keep newest snapshot of any given scope.
 
-The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in by enforcing a message to appear in only one the hierarchy branch. if we allow a more free-formed scoping syntax (based on filters for example), we'd need to have a more complex include-list computation logic and/or iterate over many snapshots for:
-   1. evaluating if a message under the scope a newly snapshot needs to be kept or removed; and
-   1. authorizing a message.
+The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in by enforcing a message to appear in only one the hierarchy branch. if we allow a more free-formed scoping syntax (based on filters for example), we'd need to have a more complex include-list computation logic and/or iterate over many snapshots when evaluating if a message under the scope a newly snapshot needs to be kept or removed.
 
-
-Note that there may not be a single 'overall' include-list of message CIDs for authorization purposes, because snapshots can be taken with scopes that have no intersection. (e.g. snapshot A with protocol X scope and snapshot B with schema-less data format Y scope)
+Note that there may be multiple logical include-list of message CIDs for authorization purposes, because snapshots can be taken with scopes that have no intersection (e.g. snapshot A with protocol X scope and snapshot B with schema-less data format Y scope). A message that does not fall under any scope of any snapshot MUST be kept.
 
 ### Scope Processing
 
@@ -144,6 +141,33 @@ computeInclusionList(incomingSnapshot);
 // delete all messages that are not in the inclusion list
 const cidsUnderIncomingSnapshotScope = getCidsUnderScope(incomingSnapshot.scope);
 this.storageController.deleteMessageAndData(cidsUnderIncomingSnapshotScope);
+
+```
+
+Pseudo-code for snapshot authorization:
+```typescript
+// get newer snapshots
+const newerSnapshots = getNewerSnapshots(incomingMessage.timestamp);
+
+// if there is one newer snapshot with scope that the incoming message falls under, then we will need to snapshot-authorize it
+const needSnapshotAuthorization = false;
+for (const newerSnapshot of newerSnapshots) {
+  if (newerSnapshot.scope.isSuperSetOf(incomingMessage.scope)) {
+    needSnapshotAuthorization = true;
+    break;
+  }
+}
+
+if (!needSnapshotAuthorization) {
+  return;
+}
+
+if (this.finalInclusionList.has(incomingMessage.cid)) {
+  return;
+}
+
+// else
+throw Error('Message failed snapshot-authorization.');
 
 ```
 
