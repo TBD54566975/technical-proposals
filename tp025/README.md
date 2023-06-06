@@ -80,7 +80,7 @@ In order to optimize the efficiency of snapshot creation and message authorizati
    All non-protocol-based messages under a particular schema and data-format.
    Unsure of its practical use, this is mainly for illustration purpose.
 
-1. `"scope": 'data=formats/<data-format>'`
+1. `"scope": 'data-formats/<data-format>'`
 
    All schema-less messages under a particular data format.
 
