@@ -89,7 +89,7 @@ The intent of the prescribed scoping structure is to minimize the possible permu
    1. authorizing a message.
 
 
-It's important to realize that its not possible to create a single 'overall' include-list of message CIDs for authorization purposes, because the appropriate include-list varies based on the timestamp of the received message. As a result, we the include-list of message CIDs much be dynamically compose.
+It's important to realize that its not possible to create a single 'overall' include-list of message CIDs for authorization purposes, because the appropriate include-list varies based on the timestamp of the received message. As a result, we the include-list of message CIDs much be dynamically composed.
 
 ### Scope Processing
 
