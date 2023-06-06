@@ -27,9 +27,9 @@ The snapshot will be created be through `SnapshotsCreate` method, an example of 
     "interface": "Snapshots",
     "method": "Create",
     "dateCreated": "2023-06-05T11:22:33.445566Z",
-    "scope": "protocols/<protocolUri>/<contextId>",
+    "scope": "protocols/<protocolUri>/<protocolPath>",
     "dataCid": "<CID of data containing CIDs of all messages in the snapshot"
-  }
+  },
   ...
 }
 ```
