@@ -99,17 +99,52 @@ General rules:
 
 1. A newer snapshot erases all older snapshots with the same or a descendent scope. (e.g. a newer snapshot with "protocol" scope overwrites all older snapshots with any "protocol path" scope under the same protocol)
 
-1. A newer snapshot invalidates and overwrites messages that are under the same (sub)scope included in any older snapshot with an ancestral scope. (e.g. a newer snapshot with a "protocol path" scope invalidates and overwrites all messages that are under the same "protocol path" included in a parent "protocol" snapshot)
+1. A newer descendent snapshot overwrites inclusion of messages that falls under its (sub)scope in the parent snapshot. (e.g. a newer descendent snapshot with a `protocolX/pathSegment1/pathSegment2` scope overwrites inclusion of messages of a parent snapshot with scope `protocolX`)
 
 Pseudo-code for `SnapshotsCreate` handling:
 ```typescript
 
 // figure out if this snapshot should be ignored or processed
-// TODO:
-
-for (const cid of cidsInSnapshot) {
-  // TODO:
+const newerSnapshots = getNewerSnapshots(incomingSnapshot.timestamp);
+for (const newerSnapshot of newerSnapshots) {
+  if (newerSnapshot.scope.isSuperSetOf(incomingSnapshot.scope)) {
+    return; // no need to process this snapshot
+  }
 }
+
+// delete all CIDs that falls under the scope of the incoming snapshot so we can repopulate that subsection correctly
+// an alternate strategy is to iterate overall all CIDs under the scope and remove as needed, but that seems less efficient
+deleteAllCidsUnderScope(incomingSnapshot.scope);
+
+// const inclusionList = new Map<string, string>; // CID -> scope map
+
+// computes the complete inclusion list at the scope of thd given snapshot
+function computeInclusionList(currentSnapshot) {
+  // NOTE: immediate descending snapshots do NOT have to have direct child scope
+  const immediateDescendingSnapshots = getImmediateDescendingSnapshots(currentSnapshot);
+  for (const immediateDescendingSnapshot in immediateDescendingSnapshots) {
+    computeInclusionList(immediateDescendingSnapshot.scope);
+  }
+  
+  for (const cid of currentSnapshot.cids) {
+    const messageScope = getMessageFullScope(cid); // consideration: opportunity for optimization
+
+    if (immediateDescendingSnapshots.scopes.hasSuperSetOf(messageScope)) {
+      continue; // a newer descendent snapshot overwrites inclusion of messages that falls under its (sub)scope.
+    }
+
+    // else
+    // `finalInclusionList` is the in-memory global inclusion list that also stores the concise scope (for optimization)
+    this.finalInclusionList.set(messageCid, messageScope);
+  }
+}
+
+computeInclusionList(incomingSnapshot);
+
+// delete all messages that are not in the inclusion list
+const cidsUnderIncomingSnapshotScope = getCidsUnderScope(incomingSnapshot.scope);
+this.storageController.deleteMessageAndData(cidsUnderIncomingSnapshotScope);
+
 ```
 
 ## Additional Considerations
@@ -134,6 +169,10 @@ for (const cid of cidsInSnapshot) {
 1. It is apparent that snapshot scoping turns out to be quite "tailor-made" towards permission and protocol, so maybe it is really not practical to have a pure general purpose snapshot feature beyond the first 2 levels of scoping hierarchy.
 
 1. The currently proposed structure falls short if there is a need to snapshot a specific protocol context (it's likely there are additional unsupported scenarios). We could introduce support for it under the "protocol" subtree, but that would violate the current design goal of "no intersecting message set in branches".
+
+1. The CID inclusion list construction requires the most concise scope of every message referenced in a snapshot by CID, while we can obtain the info by fetching the actual message per CID, this approach is highly inefficient. We could require scope to be included for each CID in the snapshot for an instance lookup, but can we blindly trust the value given to us? This requires further thinking.
+
+1. The deletion of messages does not take into account of their corresponding Record, this means an semantically valid but logically invalid list of CIDs can render the DWN in a corrupt state (e.g. containing only pruned initial `RecordsWrite` without subsequent `RecordsWrite` or `RecordsDelete`).
 
 1. It is be extremely desirable if not necessary for the scoping scheme used in snapshot be compatible to permission scoping and protocol hierarchy, such that messages in a snapshots created can roughly match the scope of permission or path of a protocol feature toggle.
 
