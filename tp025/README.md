@@ -50,13 +50,12 @@ The payload will simply contain a list of message CIDs, a potential structure:
 In order to optimize the efficiency of `SnapshotsCreate` processing, the snapshot `scope` property can only have a value that maps to a position in the logical tree structure below:
 
 ```mermaid
-  graph TD;
-      global[global - empty string]-->protocol[`protocol`];
-      protocol-->path[`protocolPath`]
-      schema-->schema-data-format[`dataFormat`]
-      global-->schema[`schema` - protocol-less];
-      global-->data-format[`dataFormat` - schema-less];
-
+graph TD;
+  global[global - empty string]-->protocol[`protocol`];
+  protocol-->path[`protocolPath`]
+  schema-->schema-data-format[`dataFormat`]
+  global-->schema[`schema` - protocol-less];
+  global-->data-format[`dataFormat` - schema-less];
 ```
 
 1. `"scope": "" | undefined`
@@ -84,11 +83,33 @@ In order to optimize the efficiency of `SnapshotsCreate` processing, the snapsho
 
    Schema-less messages under a particular data format.
 
-We only need to keep newest snapshot of any given scope.
 
-The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in by enforcing a message to appear in only one the hierarchy branch. if we allow a more free-formed scoping syntax (based on filters for example), we'd need to have a more complex include-list computation logic and/or iterate over many snapshots when evaluating if a message under the scope a newly snapshot needs to be kept or removed.
+Example snapshots in a DWN:
 
-Note that there may be multiple logical include-list of message CIDs for authorization purposes, because snapshots can be taken with scopes that have no intersection (e.g. snapshot A with protocol X scope and snapshot B with schema-less data format Y scope). A message that does not fall under any scope of any snapshot MUST be kept.
+- Round box - no snapshot defined
+- Padded Square box - snapshot defined
+
+```mermaid
+graph TD;
+  global(["global scope (no snapshot)"])-->socialMediaProtocol[["social-media protocol snapshot"]];
+  socialMediaProtocol-->posts[["posts snapshot"]]
+  posts-->postComments(["post comments (no snapshot)"])
+  socialMediaProtocol-->photoAlbum(["photo albums (no snapshot)"])
+  photoAlbum-->photos[["photos snapshot"]]
+  global-->chatProtocol(["chat protocol (no snapshot)"]);
+
+  global-->vcSchema(["protocol-less VCs (no snapshot)"]);
+  vcSchema-->vcFormat[["JWT VCs snapshot"]];
+  global-->mp3(["schema-less MP3s (no snapshot)"]);
+```
+
+1. We only need to keep newest snapshot of any given scope.
+
+1. A Records message will by-design always fall under one and only one leaf-node scope in the hierarchical scoping structure.
+
+1. The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in. If we were to allow a more flexible scoping syntax, such as using filters, it would require a more complex or less efficient logic for maintaining the overall CID include-list when evaluating messages that fall under the scope of a new snapshot for deletion.
+
+1. There can be multiple logical include-lists since snapshots can be taken with non-intersecting scopes. For example, snapshot A may have a scope of "protocol X", while snapshot B may have a entirely unrelated scope of "schema-less data format Y" with no parent/global snapshot that link them together. A message that does not fall under any scope defined in any snapshot MUST be kept. In the actual implementation, we might be able to utilize a single `Map`, as illustrated in the pseudo-code below.
 
 ### Scope Processing
 
