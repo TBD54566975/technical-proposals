@@ -19,7 +19,7 @@ Currently, if an entity is granted write access to a DWeb Node but later has tha
 
 Implement a mechanism that allows the owner to capture a 'snapshot' of the state of all records within a specific scope at a particular time. This snapshot would serve to discard any messages with timestamps earlier than the snapshot but not included in it.
 
-The snapshot will be created be through `SnapshotsCreate` method, an example of the message:
+A snapshot will be created through a `SnapshotsCreate` message, an example of the message:
 
 ```json
 {
@@ -47,7 +47,7 @@ The payload will simply contain a list of message CIDs, a potential structure:
 
 ### Scoping
 
-In order to optimize the efficiency of `SnapshotsCreate` processing, the snapshot `scope` property can only have a value that maps to a position in the logical tree structure below:
+In order to optimize the efficiency of `SnapshotsCreate` processing, the snapshot `scope` property can only have a value that maps to one position in the logical tree structure below:
 
 ```mermaid
 graph TD;
@@ -81,8 +81,7 @@ graph TD;
 
 1. `"scope": "data-formats/<data-format>"`
 
-   Schema-less messages under a particular data format.
-
+   Schema-less messages with a particular data format.
 
 Example snapshots in a DWN:
 
@@ -103,11 +102,11 @@ graph TD;
   global-->mp3(["schema-less MP3s (no snapshot)"]);
 ```
 
-1. We only need to keep newest snapshot of any given scope.
+1. Snapshot scope will by-design fall under one and only one branch in the hierarchical scoping structure. Similarly a Records message will by-design always fall under one and only one leaf-node scope in the hierarchical scoping structure.
 
-1. A Records message will by-design always fall under one and only one leaf-node scope in the hierarchical scoping structure.
+1. We only need to keep the newest snapshot of any given scope.
 
-1. The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in. If we were to allow a more flexible scoping syntax, such as using filters, it would require a more complex or less efficient logic for maintaining the overall CID include-list when evaluating messages that fall under the scope of a new snapshot for deletion.
+1. The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in. If we were to allow a more flexible scoping syntax, such as using filters, it would require a more complex or less efficient logic for maintaining the overall CID include-list when evaluating messages that fall under the scope of a new snapshot for retention/deletion.
 
 1. There can be multiple logical include-lists since snapshots can be taken with non-intersecting scopes. For example, snapshot A may have a scope of "protocol X", while snapshot B may have a entirely unrelated scope of "schema-less data format Y" with no parent/global snapshot that link them together. A message that does not fall under any scope defined in any snapshot MUST be kept. In the actual implementation, we might be able to utilize a single `Map`, as illustrated in the pseudo-code below.
 
@@ -115,7 +114,7 @@ graph TD;
 
 General rules:
 
-1. A newer snapshot erases all older snapshots with the same or a descendent scope. (e.g. a newer snapshot with "protocol" scope overwrites all older snapshots with any "protocol path" scope under the same protocol)
+1. A newer snapshot erases all older snapshots with the same or a descendent scope. (e.g. a newer snapshot with "protocol X" scope overwrites all older snapshots with any "protocol path" scope under the same protocol)
 
 1. A newer descendent snapshot overwrites inclusion of messages that falls under its (sub)scope in the parent snapshot. (e.g. a newer descendent snapshot with a `protocolX/pathSegment1/pathSegment2` scope overwrites inclusion of messages of a parent snapshot with scope `protocolX`)
 
@@ -194,7 +193,7 @@ throw Error('Message failed snapshot-authorization.');
 
 ## Additional Considerations
 
-1. Since this is a highly privileged operation, this TP suggests initially limiting it to the DID owner and potentially extending access to other actors later.
+1. Since this is a highly privileged operation, this TP suggests initially limiting access to the DID owner and potentially extending access to other actors later.
 
 1. Sync will likely need to have awareness of Snapshots messages. Consider a scenario where a DWN receives a snapshot containing messages it does not (no longer) have:
 
@@ -211,16 +210,16 @@ throw Error('Message failed snapshot-authorization.');
         DWN2-->>DWN1: Message of CID2
     ```
 
-1. It is apparent that snapshot scoping turns out to be quite "tailor-made" towards permission and protocol, so maybe it is really not practical to have a pure general purpose snapshot feature beyond the first 2 levels of scoping hierarchy.
+1. It is apparent that currently snapshot scoping turns out to be quite "tailor-made" towards permission and protocol, so maybe it is really not practical to have a pure general purpose snapshot feature beyond the first 2 levels of scoping hierarchy.
 
-1. The currently proposed structure falls short if there is a need to snapshot a specific protocol context (it's likely there are additional unsupported scenarios). We could introduce support for it under the "protocol" subtree, but that would violate the current design goal of "no intersecting message set in branches".
+1. The currently proposed structure falls short if there is a need to snapshot a specific protocol context (it's likely there are additional unsupported scenarios). We could introduce support for it under the "protocol" subtree, but that would violate the current design goal of "strictly one leaf-code scope per message".
 
-1. The CID inclusion list construction requires the most concise scope of every message referenced in a snapshot by CID, while we can obtain the info by fetching the actual message per CID, this approach is highly inefficient. We could require scope to be included for each CID in the snapshot for an instance lookup, but can we blindly trust the value given to us? This requires further thinking.
+1. The CID inclusion list construction needs the leaf-node scope of every message referenced in a snapshot by CID, while we can obtain this info by fetching the actual message for each CID, this approach is highly inefficient. We could require scope to be included for each CID in the snapshot for an instance lookup, but can we blindly trust the value given to us? This requires further thinking.
 
 1. The deletion of messages does not take into account of their corresponding Record, this means an semantically valid but logically invalid list of CIDs can render the DWN in a corrupt state (e.g. containing only pruned initial `RecordsWrite` without subsequent `RecordsWrite` or `RecordsDelete`).
 
-1. It is be extremely desirable if not necessary for the scoping scheme used in snapshot be compatible to permission scoping and protocol hierarchy, such that messages in a snapshots created can roughly match the scope of permission or path of a protocol feature toggle.
+1. It is highly desirable for the snapshot scoping scheme to align with permission scoping and protocol hierarchy.
 
-1. It does not make sense functionally and dangerous even to allow scopes that cuts across both protocol-authorized messages and protocol-less message.
+1. It does not make sense functionally and even potentially dangerous even to allow scopes that span across both protocol-authorized messages and protocol-less message.
 
-1. It doesn't seem logical to permit the deletion of a snapshot once it's created for authorization purposes. If the snapshot is deleted, the DWeb Node will no longer be able to utilize the deleted snapshot to prevent unauthorized access.
+1. It does not seem logical to permit the deletion of a snapshot once it is created for authorization purposes. If the snapshot is deleted, the DWeb Node will no longer be able to utilize the deleted snapshot to prevent unauthorized access.
