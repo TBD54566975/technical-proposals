@@ -47,15 +47,18 @@ The payload will simply contain a list of message CIDs, a potential structure:
 
 ### Scoping
 
-In order to optimize the efficiency of `SnapshotsCreate` processing, the snapshot `scope` property can only have a value that maps to one position in the logical tree structure below:
+In order to minimize complexity of `SnapshotsCreate` processing, the snapshot `scope` property must have a value that maps to one of the allowed positions in the logical tree structure below:
 
 ```mermaid
 graph TD;
   global[global - empty string]-->protocol[`protocol`];
-  protocol-->path[`protocolPath`]
+  protocol-->path[`protocolPath`]:::intersectingScope
+  protocol-->context[`contextId`]:::intersectingScope
   schema-->schema-data-format[`dataFormat`]
   global-->schema[`schema` - protocol-less];
   global-->data-format[`dataFormat` - schema-less];
+
+  classDef intersectingScope stroke-dasharray: 5
 ```
 
 1. `"scope": "" | undefined`
@@ -66,9 +69,13 @@ graph TD;
 
    Messages under a particular protocol.
 
-1. `"scope": "protocols/<protocolUri>/<protocolPath>"`
+1. `"scope": "protocols/<protocolUri>/path/<protocolPath>"`
 
    Messages under a particular protocol path under a protocol.
+
+1. `"scope": "protocols/<protocolUri>/context/<contextId>"`
+
+   Messages under a particular context ID under a protocol.
 
 1. `"scope": "schemas/<schemaUri>"`
 
@@ -102,13 +109,13 @@ graph TD;
   global-->mp3(["schema-less MP3s (no snapshot)"]);
 ```
 
-1. Snapshot scope will by-design fall under one and only one branch in the hierarchical scoping structure. Similarly a Records message will by-design always fall under one and only one leaf-node scope in the hierarchical scoping structure.
+1. Snapshot scope of `protocolPath` and `contextId` are the only two leaf scopes that are intersecting. That is, a message can simultaneously be referenced in a `protocolPath` scoped snapshot as well as a `contextId` scoped snapshot.
 
 1. We only need to keep the newest snapshot of any given scope.
 
-1. The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in. If we were to allow a more flexible scoping syntax, such as using filters, it would require a more complex or less efficient logic for maintaining the overall CID include-list when evaluating messages that fall under the scope of a new snapshot for retention/deletion.
+1. The intent of the prescribed scoping structure is to minimize the possible permutation of scopes a message can appear in. If we were to allow a more flexible scoping syntax, such as using filters, it would require a more complex or less efficient logic for maintaining the overall CID retention list .
 
-1. There can be multiple logical include-lists since snapshots can be taken with non-intersecting scopes. For example, snapshot A may have a scope of "protocol X", while snapshot B may have a entirely unrelated scope of "schema-less data format Y" with no parent/global snapshot that link them together. A message that does not fall under any scope defined in any snapshot MUST be kept. In the actual implementation, we might be able to utilize a single `Map`, as illustrated in the pseudo-code below.
+1. A message that does not fall under the scope of any snapshot is not subject to snapshot authorization, thus MUST be kept.
 
 ### Scope Processing
 
@@ -116,51 +123,91 @@ General rules:
 
 1. A newer snapshot erases all older snapshots with the same or a descendent scope. (e.g. a newer snapshot with "protocol X" scope overwrites all older snapshots with any "protocol path" scope under the same protocol)
 
-1. A newer descendent snapshot overwrites inclusion of messages that falls under its (sub)scope in the parent snapshot. (e.g. a newer descendent snapshot with a `protocolX/pathSegment1/pathSegment2` scope overwrites inclusion of messages of a parent snapshot with scope `protocolX`)
+1. A newer descendent snapshot overwrites retention of messages that falls under its (sub)scope in the parent snapshot. (e.g. a newer descendent snapshot with a `protocolX/pathSegment1/pathSegment2` scope overwrites retention of messages of a parent snapshot with scope `protocolX`)
 
-Pseudo-code for `SnapshotsCreate` handling:
+Pseudo-code for `SnapshotsCreate` processing:
 ```typescript
 
-// figure out if this snapshot should be ignored or processed
+// processing algorithm in a nutshell:
+// maintain an aggregate retention list of CIDs (`this.finalRetentionList`) for quick snapshot-authorization evaluation
+// 
+// 0. determine if the incoming snapshot should be ignored or processed
+// 1. first delete all the CIDs in the final retention list that came from snapshots with scope same as, or sub-scope of, the incoming snapshot scope, so that we can rebuild that section of the retention list 
+// 2. delete all older snapshots with same or sub-scope, because a newer parent scope snapshot trumps any older snapshots with a sub-scope
+// 3. update the final retention list by inserting the CIDs that need to be retained under the incoming snapshot scope; then
+// 4. delete all DWN messages under the incoming snapshot scope (including sub-scopes) that are not in the retention list
+
+
+// 0. determine if the incoming snapshot should be ignored or processed
 const newerSnapshots = getNewerSnapshots(incomingSnapshot.timestamp);
 for (const newerSnapshot of newerSnapshots) {
-  if (newerSnapshot.scope.isSuperSetOf(incomingSnapshot.scope)) {
+  if (newerSnapshot.scope.isParentScopeOf(incomingSnapshot.scope)) {
     return; // no need to process this snapshot
   }
 }
 
-// delete all CIDs that falls under the scope of the incoming snapshot so we can repopulate that subsection correctly
-// an alternate strategy is to iterate overall all CIDs under the scope and remove as needed, but that seems less efficient
-deleteAllCidsUnderScope(incomingSnapshot.scope);
+// 1. delete all the CIDs in the final retention list that came from snapshots with scope same as, or sub-scope of, the incoming snapshot scope
+//
+// get all CIDs of retained in snapshots under the incoming snapshot scope (including sub-scopes), regardless of snapshot timestamp
+// NOTE: logic for doing this may be optimized to look very similar to the recursive retention list computation
+const snapshotsUnderIncomingSnapshotScope = getSnapshotsUnderScope(incomingSnapshot.scope);
+const cidCandidatesForRemoval = getAllRetainedCidsInSnapshots(snapshotsUnderIncomingSnapshotScope);
+for (const cid in cidCandidatesForRemoval) {
+  // TODO: figure out how to efficiently obtain full scope info without fetching the message 
+  const messageScope = getMessageFullScope(cid);
+  // this is where we need to make sure we don't remove CIDs in the final retention list that are referenced by an external intersecting scope
+  // ie. if incoming snapshot scope is `contextId` scoped,
+  //     then we need to make sure we check the retention list of intersecting snapshots with `protocolPath` scope
+  // eg. if a CID is being evaluated for deletion under the `contextId` scope and its `protocolPath` is `foo/bar/baz`,
+  //     we need to check snapshots with `protocolPath` scope of `foo`, and `foo/bar`, and `foo/bar/baz`
+  //     to make sure none of those snapshots attempts to retrain the same CID
+  // TODO: requires more drilling into as it appears to be very costly
+  const intersectingSnapshots = getIntersectingSnapshots(messageScope, incomingSnapshot.scope);
+  for (const intersectingSnapshot of intersectingSnapshot) {
+    const retainedInIntersectingSnapshot = intersectingSnapshot.includes(cid);
+    if (retainedInIntersectingSnapshot) {
+      continue; // can't remove the CID from the final retention list if it is being referenced by an intersecting snapshot
+    }
+  }
 
-// const inclusionList = new Map<string, string>; // CID -> scope map
+  // delete if not referenced in any snapshots with externally intersecting scopes
+  this.finalRetentionList.delete(cid);
+}
 
-// computes the complete inclusion list at the scope of thd given snapshot
-function computeInclusionList(currentSnapshot) {
-  // NOTE: immediate descending snapshots do NOT have to have direct child scope
-  const immediateDescendingSnapshots = getImmediateDescendingSnapshots(currentSnapshot);
-  for (const immediateDescendingSnapshot in immediateDescendingSnapshots) {
-    computeInclusionList(immediateDescendingSnapshot.scope);
+
+// 2. delete all older snapshots with same or sub-scope, because a newer parent scope snapshot trumps any older snapshots with a sub-scope
+deleteOlderSnapshotsWithSameOrSubScope();
+
+// computes the complete retention list at the scope of thd given snapshot
+function updateRetentionList(currentSnapshot) {
+  // NOTE: immediate newer descending snapshots do NOT have to have direct child scope
+  const immediateNewerDescendingSnapshots = getImmediateNewerDescendingSnapshots(currentSnapshot);
+
+  // NOTE: looping through the immediate descending snapshots can probably be after the looping of the CIDs in this snapshot below also
+  for (const immediateNewerDescendingSnapshot in immediateNewerDescendingSnapshots) {
+    updateRetentionList(immediateNewerDescendingSnapshot.scope);
   }
   
   for (const cid of currentSnapshot.cids) {
-    const messageScope = getMessageFullScope(cid); // consideration: opportunity for optimization
+    // TODO: figure out how to efficiently obtain full scope info without fetching the message 
+    const messageScope = getMessageFullScope(cid);
 
-    if (immediateDescendingSnapshots.scopes.hasSuperSetOf(messageScope)) {
-      continue; // a newer descendent snapshot overwrites inclusion of messages that falls under its (sub)scope.
+    if (immediateDescendingSnapshotsHaveAParentScopeOf(messageScope)) {
+      continue; // a newer descendent snapshot overwrites retention list that falls under its (sub)scope.
     }
 
     // else
-    // `finalInclusionList` is the in-memory global inclusion list that also stores the concise scope (for optimization)
-    this.finalInclusionList.set(messageCid, messageScope);
+    this.finalRetentionList.push(messageCid);
   }
 }
 
-computeInclusionList(incomingSnapshot);
+// 3. update the final retention list by inserting the CIDs that need to be retained under the incoming snapshot scope; then
+updateRetentionList(incomingSnapshot);
 
-// delete all messages that are not in the inclusion list
-const cidsUnderIncomingSnapshotScope = getCidsUnderScope(incomingSnapshot.scope);
-this.storageController.deleteMessageAndData(cidsUnderIncomingSnapshotScope);
+// 4. delete all DWN messages under the incoming snapshot scope (including sub-scopes) that are not in the retention list
+// NOTE: seems super expensive to iterate over all CIDs but unavoidable?!
+const cidsUnderIncomingSnapshotScope = getCidsInDwnUnderScope(incomingSnapshot.scope);
+this.storageController.deleteMessageAndDataUnlessInRetentionList(cidsUnderIncomingSnapshotScope, this.finalRetentionList);
 
 ```
 
@@ -182,7 +229,7 @@ if (!needSnapshotAuthorization) {
   return;
 }
 
-if (this.finalInclusionList.has(incomingMessage.cid)) {
+if (this.finalRetentionList.has(incomingMessage.cid)) {
   return;
 }
 
@@ -210,11 +257,13 @@ throw Error('Message failed snapshot-authorization.');
         DWN2-->>DWN1: Message of CID2
     ```
 
-1. It is apparent that currently snapshot scoping turns out to be quite "tailor-made" towards permission and protocol, so maybe it is really not practical to have a pure general purpose snapshot feature beyond the first 2 levels of scoping hierarchy.
+   Consider an an extension to the scenario above, if message of `CID2` is removed after `Snapshot2` is taken and before sync of `Snapshot2`, DWN would not be able to fetch message of `CID2` even if it tries.
 
-1. The currently proposed structure falls short if there is a need to snapshot a specific protocol context (it's likely there are additional unsupported scenarios). We could introduce support for it under the "protocol" subtree, but that would violate the current design goal of "strictly one leaf-code scope per message".
+1. Would not make sense to allow scope to use mutable properties.
 
-1. The CID inclusion list construction needs the leaf-node scope of every message referenced in a snapshot by CID, while we can obtain this info by fetching the actual message for each CID, this approach is highly inefficient. We could require scope to be included for each CID in the snapshot for an instance lookup, but can we blindly trust the value given to us? This requires further thinking.
+1. The the support for both "protocolPath" abd "contextId" in scope structure adds extra complexity.
+
+1. The CID retention list construction needs the leaf-node scope of every message referenced in a snapshot by CID, while we can obtain this info by fetching the actual message for each CID, this approach is highly inefficient. We could require scope to be included for each CID in the snapshot for an instance lookup, but can we blindly trust the value given to us? This requires further thinking.
 
 1. The deletion of messages does not take into account of their corresponding Record, this means an semantically valid but logically invalid list of CIDs can render the DWN in a corrupt state (e.g. containing only pruned initial `RecordsWrite` without subsequent `RecordsWrite` or `RecordsDelete`).
 
