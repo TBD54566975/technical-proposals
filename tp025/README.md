@@ -132,7 +132,8 @@ Pseudo-code for `SnapshotsCreate` processing:
 // maintain an aggregate retention list of CIDs (`this.finalRetentionList`) for quick snapshot-authorization evaluation
 // 
 // 0. determine if the incoming snapshot should be ignored or processed
-// 1. first delete all the CIDs in the final retention list that came from snapshots with scope same as, or sub-scope of, the incoming snapshot scope, so that we can rebuild that section of the retention list 
+// 1. first delete all the CIDs in the final retention list that were retained by snapshots
+//    with the same scope as, or sub-scope of, the incoming snapshot scope, so that we can rebuild that section of the retention list 
 // 2. delete all older snapshots with same or sub-scope, because a newer parent scope snapshot trumps any older snapshots with a sub-scope
 // 3. update the final retention list by inserting the CIDs that need to be retained under the incoming snapshot scope; then
 // 4. delete all DWN messages under the incoming snapshot scope (including sub-scopes) that are not in the retention list
@@ -146,21 +147,24 @@ for (const newerSnapshot of newerSnapshots) {
   }
 }
 
-// 1. delete all the CIDs in the final retention list that came from snapshots with scope same as, or sub-scope of, the incoming snapshot scope
+// 1. delete all the CIDs in the final retention list that were retained by snapshots
+//    with the same scope as, or sub-scope of, the incoming snapshot scope
 //
-// get all CIDs of retained in snapshots under the incoming snapshot scope (including sub-scopes), regardless of snapshot timestamp
-// NOTE: logic for doing this may be optimized to look very similar to the recursive retention list computation
+// get all CIDs retained by snapshots under the incoming snapshot scope (including sub-scopes),
+// regardless of the timestamp of snapshot that retains them
+// NOTE: an optimized algorithm amy allow us to only iterate over CIDs retained by older snapshots,
+//       but we'd need to keep metadata such as timestamp in the final retention list for last lookup
 const snapshotsUnderIncomingSnapshotScope = getSnapshotsUnderScope(incomingSnapshot.scope);
 const cidCandidatesForRemoval = getAllRetainedCidsInSnapshots(snapshotsUnderIncomingSnapshotScope);
 for (const cid in cidCandidatesForRemoval) {
   // TODO: figure out how to efficiently obtain full scope info without fetching the message 
   const messageScope = getMessageFullScope(cid);
-  // this is where we need to make sure we don't remove CIDs in the final retention list that are referenced by an external intersecting scope
+  // we need to make sure we don't remove CIDs in the final retention list that are referenced by another external intersecting scope
   // ie. if incoming snapshot scope is `contextId` scoped,
   //     then we need to make sure we check the retention list of intersecting snapshots with `protocolPath` scope
   // eg. if a CID is being evaluated for deletion under the `contextId` scope and its `protocolPath` is `foo/bar/baz`,
-  //     we need to check snapshots with `protocolPath` scope of `foo`, and `foo/bar`, and `foo/bar/baz`
-  //     to make sure none of those snapshots attempts to retrain the same CID
+  //     we will need to check snapshots with `protocolPath` scope of `foo`, and `foo/bar`, and `foo/bar/baz`
+  //     to make sure none of those snapshots also retrain the same CID
   // TODO: requires more drilling into as it appears to be very costly
   const intersectingSnapshots = getIntersectingSnapshots(messageScope, incomingSnapshot.scope);
   for (const intersectingSnapshot of intersectingSnapshot) {
@@ -189,10 +193,9 @@ function updateRetentionList(currentSnapshot) {
   }
   
   for (const cid of currentSnapshot.cids) {
-    // TODO: figure out how to efficiently obtain full scope info without fetching the message 
-    const messageScope = getMessageFullScope(cid);
-
-    if (immediateDescendingSnapshotsHaveAParentScopeOf(messageScope)) {
+    // TODO: figure out how to efficiently check this
+    const cidRetainedByADescendingSnapshot = isCidRetainedByADescendingSnapshot(cid);
+    if (cidRetainedByADescendingSnapshot) {
       continue; // a newer descendent snapshot overwrites retention list that falls under its (sub)scope.
     }
 
