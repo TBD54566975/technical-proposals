@@ -275,3 +275,5 @@ throw Error('Message failed snapshot-authorization.');
 1. It does not make sense functionally and even potentially dangerous even to allow scopes that span across both protocol-authorized messages and protocol-less message.
 
 1. It does not seem logical to permit the deletion of a snapshot once it is created for authorization purposes. If the snapshot is deleted, the DWeb Node will no longer be able to utilize the deleted snapshot to prevent unauthorized access.
+
+1. We need to add locking/queueing mechanism to handle concurrent/competing snapshots and record changes during snapshot processing.
