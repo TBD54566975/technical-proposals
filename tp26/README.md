@@ -40,7 +40,10 @@ The descriptors of `PermissionsRequest` and `PermissionsGrant` both contain the 
 
 The `scope` property sets the boundaries on what abilities the grantee has. `scope` specifies a single DWN interface and method as well as several optional fields. The abilities granted by the `PermissionsGrant` are the intersection of properties within `scope`. In other words, whenever a grant is used, the action taken must follow all of the rules outlined in the `scope`.
 
-The `conditions` property describes certain features about messages which use the grant. For example, if a grant has the `encryption` condition set to `required` then all records written using that grant must be encrypted.
+The `conditions` property describes certain features about messages which use the grant.
+
+### Encryption
+The `encryption` condition in a `PermissionsGrant` can be used to authorize messages that write data, such as `RecordsWrite`. `encryption` has three possible options. If `encryption === 'required'`, then the grant-authorized message must contain an `encryption` field, as specified in [TP18](https://github.com/TBD54566975/technical-proposals/pull/6). If `encryption === 'prohibited'`, then the grant-authorized message may not contain an `encryption` field. If `encryption` is absent or equals `optional`, then then the grant-authorized message may contain or omit `encryption`.
 
 ### Protocols
 There are two ways an entity may gain access to a protocol record. First, the protocol definition may specify access to the actor. Second, the entity may have a `PermissionsGrant` with a scope that contains the record. In either case, an incoming `RecordsWrite` must conform to the protocol type and path laid out in the protocol definition.
@@ -97,8 +100,6 @@ By themselves `PermissionsRequests` do nothing. However, it is necessary for the
 
 ### PermissionsGrant
 `PermissionsGrant` explicitly gives an external entity the ability to send a DWN message within some `scope`; further restrictions are defined in the `conditions` property. To use a `PermissionsGrant`, the external entity must include the CID of the relevant `PermissionsGrant` in the `permissionsGrantId` field of each message's `authorization`. The grant is active until its `expiresAt` time or until a `PermissionsRevoke` is affected.
-
-`PermissionsGrant` messages will have an `encryptionKey` property if the `encryption` condition is `required` or `optional`.
 
 ### PermissionsRevoke
 Who can revoke a grant? In the immediate term, a grant can be revoked by the DID in the `grantedBy` field or by the DWN owner. In a separate TP about delegation we will elaborate on more complex answers to this question.
