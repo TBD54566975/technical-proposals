@@ -42,6 +42,13 @@ The `scope` property sets the boundaries on what abilities the grantee has. `sco
 
 The `conditions` property describes certain features about messages which use the grant. For example, if a grant has the `encryption` condition set to `required` then all records written using that grant must be encrypted.
 
+### Protocols
+There are two ways an entity may gain access to a protocol record. First, the protocol definition may specify access to the actor. Second, the entity may have a `PermissionsGrant` with a scope that contains the record. In either case, an incoming `RecordsWrite` must conform to the protocol type and path laid out in the protocol definition.
+
+For scopes specifying `interface: Records`, the `protocol` scope restricts a `PermissionsGrant` to reading, writing, querying, or deleting records within a single protocol. The `contextId` can further restrict record access within a protocol to a single context.
+
+If `protocol` is specified with `interface: Protocols` and `method: Configure`, this allows an entity to configure a single protocol. If an entity has a grant allowing for `ProtocolsQuery`, the `protocol` scope will force the `ProtocolsQuery` to have a filter containing the granted `protocol` URI.
+
 ### Delegation
 The `delegation` condition contains enough complexity that it deserves a separate technical proposal. There are mentions of delegates and delegation in this TP, but its nuance is not fully captured. For the curious, delegation allows the following scenario: if Alice gives Bob a grant with `delegation` enabled, then Bob can issue grants of the same or narrower scope to Carol.
 
@@ -51,10 +58,16 @@ See the type definitions below for a list of `scope` and `conditions` options. M
 type PermissionsScope = {
   interface: DwnInterface;
   method: DwnMethod;
-  // The grantee may access records with matching `schema`
+  // May only be present when `interface` === 'Records'.
+  // The grantee may access records with matching `schema`.
   schema?: string;
+  // May only be present when `interface` is 'Records' or 'Protocols'.
   // The grantee may access protocols or records with matching protocol URI.
   protocol?: string;
+  // May only be present when `protocol` is present.
+  // The grantee may access protocol records within a particular context.
+  contextId?: string;
+  // May only be present when `interface` === 'Records'.
   // The grantee may access a specific records with matching recordId.
   recordIds?: string[];
 };
@@ -93,7 +106,9 @@ Who can revoke a grant? In the immediate term, a grant can be revoked by the DID
 A `PermissionsRevoke` contains the CID of a `PermissionsGrant` message. If an incoming message contains this `permissionsGrantId` in its `authorization`, its timestamp must be after the timestamp of the `PermissionsGrant` and before the timestamp of the `PermissionsRevoke`.
 
 ### PermissionsQuery
-A `PermissionsQuery` contains a filter and returns a list of unrevoked `PermissionsGrants` where `grantedFor`, `grantedTo`, or `grantedBy` contains the DID of the author of the `PermissionsQuery`. The `filter` may contain any field that appears in the `scope` section of a `PermissionsGrant`. 
+A `PermissionsQuery` contains a filter and returns a list of active `PermissionsGrants`. For an empty `filter`, the response will contain all grants where the requester's DID is in the `grantedTo`, `grantedFor`, or `grantedBy`. The `filter` may also contain any field in the `scope` of a `PermissionsGrant`.
+
+The filter may also contain `grantedTo`, `grantedFor`, or `grantedBy`.The DWN owner may pass any DID to these fields. For anyone else, if these fields are present, they must equal the DID of the requester, or the `PermissionsQuery` must contain a `permissionsGrantId` allowing them to query `
 
 ## Type definitions
 ```typescript
@@ -136,5 +151,17 @@ type PermissionsRevokeDescriptor = {
   method: 'Grant';
   // The CID of the `PermissionsGrant` message being revoked.
   permissionsGrantId: string;
+}
+
+type PermissionsQueryDescriptor = {
+  interface: 'Permissions';
+  method: 'Query';
+  filter: PermissionsScope & {
+    // The DWN owner may pass any DID to these fields.
+    // For anyone else, if these fields are present, they must equal the DID of the requester.
+    grantedTo?: string;
+    grantedBy?: string;
+    grantedFor?: string;
+  }
 }
 ```
