@@ -67,8 +67,11 @@ type PermissionsScope = {
   // May only be present when `interface` is 'Records' or 'Protocols'.
   // The grantee may access protocols or records with matching protocol URI.
   protocol?: string;
-  // May only be present when `protocol` is present.
-  // The grantee may access protocol records within a particular context.
+  // May only be present when `interface` is Records and `protocol` is present.
+  // The grantee may access records within a particular protocolPath of a protocol.
+  protocolPath: string;
+  // May only be present when `interface` is Records and `protocol` is present.
+  // The grantee may access records within a particular context of a protocol.
   contextId?: string;
   // May only be present when `interface` === 'Records'.
   // The grantee may access a specific records with matching recordId.
@@ -118,8 +121,13 @@ type PermissionsRequestDescriptor = {
   method: 'Request';
   // The DID of the DWN which the grantee will be given access
   grantedFor: string;
-  // The grantee. Often this will be the author of the PermissionsRequest message
-  grantedTo: string;
+  // The recipient of the grant. Often this will be the author of the PermissionsRequest message
+  grantedTo: {
+    // Enum, currently with only one value "did".
+    // This structure is extensible; we can add more parties to give grants to in the future, such as groups or participants.
+    grantedToType: string;
+    grantee: string;
+  };
   // The granter, who will be either the DWN owner or an entity who the DWN owner has delegated permission to.
   grantedBy: string;
   // Optional string that communicates what the grant would be used for
@@ -137,8 +145,13 @@ type PermissionsGrantDescriptor = {
   expiresAt?: string;
   // The DID of the DWN which the grantee will be given access
   grantedFor: string;
-  // The grantee. Often this will be the author of the PermissionsRequest message
-  grantedTo: string;
+  // The recipient of the grant. Often this will be the author of the PermissionsRequest message
+  grantedTo: {
+    // Enum, currently with only one value "did".
+    // This structure is extensible; we can add more parties to give grants to in the future, such as groups or participants.
+    grantedToType: string;
+    grantee: string;
+  };
   // The granter, who will be either the DWN owner or an entity who the DWN owner has delegated permission to.
   grantedBy: string;
   // Optional string that communicates what the grant would be used for
