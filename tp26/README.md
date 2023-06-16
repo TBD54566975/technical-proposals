@@ -102,7 +102,7 @@ By themselves `PermissionsRequests` do nothing. However, it is necessary for the
 2. We must standardize how one entity to requests access to another entity's resources. If we do not define this, we risk each app defining their own access-request pattern with no interoperability between apps.
 
 ### PermissionsGrant
-`PermissionsGrant` explicitly gives an external entity the ability to send a DWN message within some `scope`; further restrictions are defined in the `conditions` property. To use a `PermissionsGrant`, the external entity must include the CID of the relevant `PermissionsGrant` in the `permissionsGrantId` field of each message's `authorization`. The grant is active until its `expiresAt` time or until a `PermissionsRevoke` is affected.
+`PermissionsGrant` explicitly gives an external entity the ability to send a DWN message within some `scope`; further restrictions are defined in the `conditions` property. To use a `PermissionsGrant`, the external entity must include the CID of the relevant `PermissionsGrant` in the `permissionsGrantId` field of each message's `authorization`. The grant is active until its `dateExpires` time or until a `PermissionsRevoke` is affected.
 
 ### PermissionsRevoke
 Who can revoke a grant? In the immediate term, a grant can be revoked by the DID in the `grantedBy` field or by the DWN owner. In a separate TP about delegation we will elaborate on more complex answers to this question.
@@ -119,6 +119,7 @@ The filter may also contain `grantedTo`, `grantedFor`, or `grantedBy`.The DWN ow
 type PermissionsRequestDescriptor = {
   interface: 'Permissions';
   method: 'Request';
+  dateCreated: string;
   // The DID of the DWN which the grantee will be given access
   grantedFor: string;
   // The recipient of the grant. Often this will be the author of the PermissionsRequest message
@@ -139,10 +140,11 @@ type PermissionsRequestDescriptor = {
 type PermissionsGrantDescriptor = {
   interface: 'Permissions';
   method: 'Grant';
+  dateCreated: string;
   // Optional CID of a PermissionsRequest message. This is optional because grants may be given without being officially requested
   permissionsRequestId?: string;
   // Optional timestamp at which this grant will no longer be active.
-  expiresAt?: string;
+  dateExpires?: string;
   // The DID of the DWN which the grantee will be given access
   grantedFor: string;
   // The recipient of the grant. Often this will be the author of the PermissionsRequest message
