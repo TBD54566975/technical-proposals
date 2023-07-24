@@ -30,11 +30,30 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
 - Subsequent updates to this record can be either `RecordsWrite` or `RecordsCommit`.
   - `RecordsCommit` message must have the following:
     - `recordId` that MUST be the `recordId` of the logical record the entry corrosponds with.
-    - `parentId` that MUST be the CID of the descriptor of the previous `RecordsWrite` or `RecordsCommit` ancestor in the record's lineage.
+    - `parentId` that MUST be the CID of the descriptor(`entryId`) of the previous `RecordsWrite` or `RecordsCommit` ancestor in the record's lineage.
   - `RecordsWrite` message:
     - MAY set a new `commitStrategy`
     - creates a new starting point for subsequent `RecordsCommit` messages.
 
+
+## Considertions
+ - Many commits could requuire a lot of storage and bandwidth.
+ - Permissions/Protocol rules are inherated from the Write
+ - Protocol/ProtocolPath should be present in `RecordsCommit` message descriptor to derive keys without access to the `RecordsWrite` parent.
+ - All potential leaves of the tree are stored until a subsequent `RecordsWrite` is made.
+
+## General Questions
+ - How will this work with DataStreams?
+ - Within the multi-writer `RecordsCommit` context, what responsibilities does the DWN have vs the Web5 SDK vs general application layer logic?
+ - Potential For Querying:
+    - `RecordsRead` and `RecordsQuery` will still return a `RecordsWrite` as they do today
+    - If `commitStrategy` is set for the user SHOULD preform a `RecordsQueryCommits` to get a list of the commits which build on top of the `RecordsWrite` parent. 
+    - Is there a better querying flow for data with Commits? 
+      - `RecordsQuery` potentially returns both the `RecordsWrite` and `RecordsCommit` in one call if commits exist?
+      - Index and Query Commits starting at a particular `parentId`?
+
+
+## Examples
 #### Simple Example
 ```mermaid
   graph LR;
@@ -62,29 +81,9 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
     entryId_Write_A[entryId] --> parentId_Commit_A
   end
 ```
-#### Complex Example
+#### Branched Example
 ```mermaid
   graph LR;
-  subgraph RecordsCommit_A2B2E[RecordsCommit B2-E]
-    recordId_Commit_A2B2E[recordId]
-    parentId_Commit_A2B2E[parentId]
-    entryId_Commit_A2B2E[entryId]
-  end
-  subgraph RecordsCommit_A2B2D[RecordsCommit B2-D]
-    recordId_Commit_A2B2D[recordId] -.-> recordId_Commit_A2B2E
-    parentId_Commit_A2B2D[parentId]
-    entryId_Commit_A2B2D[entryId] --> parentId_Commit_A2B2E
-  end
-  subgraph RecordsCommit_A2B2C[RecordsCommit B2-C]
-    recordId_Commit_A2B2C[recordId] -.-> recordId_Commit_A2B2D
-    parentId_Commit_A2B2C[parentId]
-    entryId_Commit_A2B2C[entryId] --> parentId_Commit_A2B2D
-  end
-  subgraph RecordsCommit_A2B2[RecordsCommit A2-B2]
-    recordId_Commit_A2B2[recordId] -.-> recordId_Commit_A2B2C
-    parentId_Commit_A2B2[parentId]
-    entryId_Commit_A2B2[entryId] --> parentId_Commit_A2B2C
-  end
   subgraph RecordsCommit_A2D[RecordsCommit A2-D]
     recordId_Commit_A2D[recordId]
     parentId_Commit_A2D[parentId]
@@ -101,10 +100,8 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
   end
   subgraph RecordsCommit_A2[RecordsCommit A2]
     recordId_Commit_A2[recordId] -.-> recordId_Commit_A2B
-    recordId_Commit_A2[recordId] -.-> recordId_Commit_A2B2
     parentId_Commit_A2[parentId] 
     entryId_Commit_A2[entryId] --> parentId_Commit_A2B
-    entryId_Commit_A2[entryId] --> parentId_Commit_A2B2
   end
   subgraph RecordsCommit_C[RecordsCommit C]
     recordId_Commit_C[recordId]
@@ -127,5 +124,3 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
     entryId_Write_A[entryId] --> parentId_Commit_A2
   end
 ```
-
-Clients will use `RecordsQuery` or `RecordsRead` and the results will allow them to use a root `RecordsWrite` and a lineage of `RecordsCommit` to produce the latest state of the object.
