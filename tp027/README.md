@@ -37,7 +37,7 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
 
 
 ## Considertions
-- How to behave if the server receives a `RecordsCommit` which has a `parentId` that points to a `RecordsWrite` or `RecordsCommit` that the server hasnt recieved yet.
+- How to behave if the server receives a `RecordsCommit` which has a `parentId` that points to a `RecordsWrite` or `RecordsCommit` that the server hasnt recieved yet, or has deleted?
   - Store the message in an `inbox` / `cache` with a TTL in case you receive the parent message?
 - If recieving multiple `RecordsCommit` messages which point to the same `parentId`, keep all of the potential tree paths until a `RecordsWrite` is made.
 - Many commits could requuire a lot of storage and bandwidth.
@@ -146,6 +146,12 @@ type RecordsCommitDescriptor = {
   parentId: string;
   // matches the commitStrategy of the RecordsWrite. Is this needed here if it exists on the Write? mostly to prevent issues?
   commitStrategy: CommitStrategy;
+
+  //from RecordsWrite, used for key derivation:
+  protocol?: string;
+  protocolPath?: string;
+  schema?: string;
+  contextId?: string;
 
   // standard message data
   dataCid: string;
