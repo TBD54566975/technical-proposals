@@ -30,7 +30,7 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
 - Subsequent updates to this record can be either `RecordsWrite` or `RecordsCommit`.
   - `RecordsCommit` message must have the following:
     - `recordId` that MUST be the `recordId` of the logical record the entry corrosponds with.
-    - `parentId` that MUST be the CID of the descriptor(`entryId`) of the previous `RecordsWrite` or `RecordsCommit` ancestor in the record's lineage.
+    - `parentId` that MUST be the CID of the descriptor(`entryId`?) of the previous `RecordsWrite` or `RecordsCommit` ancestor in the record's lineage.
   - `RecordsWrite` message:
     - MAY set a new `commitStrategy`
     - creates a new starting point for subsequent `RecordsCommit` messages.
@@ -38,19 +38,17 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
 
 ## Considertions
  - Many commits could requuire a lot of storage and bandwidth.
- - Permissions/Protocol rules are inherated from the Write
- - Protocol/ProtocolPath should be present in `RecordsCommit` message descriptor to derive keys without access to the `RecordsWrite` parent.
+ - Schema/Permissions/Protocol rules are inherated from the `RecordsWrite` parent. 
  - All potential leaves of the tree are stored until a subsequent `RecordsWrite` is made.
 
 ## General Questions
  - How will this work with DataStreams?
  - Within the multi-writer `RecordsCommit` context, what responsibilities does the DWN have vs the Web5 SDK vs general application layer logic?
  - Potential For Querying:
-    - `RecordsRead` and `RecordsQuery` will still return a `RecordsWrite` as they do today
-    - If `commitStrategy` is set for the user SHOULD preform a `RecordsQueryCommits` to get a list of the commits which build on top of the `RecordsWrite` parent. 
-    - Is there a better querying flow for data with Commits? 
-      - `RecordsQuery` potentially returns both the `RecordsWrite` and `RecordsCommit` in one call if commits exist?
-      - Index and Query Commits starting at a particular `parentId`?
+    - `RecordsRead` will still return a `RecordsWrite` as it does today.
+      - If `commitStrategy` is set for the user SHOULD preform a `RecordsQuery` to get a list of the commits which build on top of the `RecordsWrite` parent.
+    - `RecordsQuery` without an additional `method` filter will return both `RecordsWrite` and `RecordsCommit`
+    - Potentially Index and Query Commits given a particular `parentId`?
 
 
 ## Examples
@@ -81,11 +79,17 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
     entryId_Write_A[entryId] --> parentId_Commit_A
   end
 ```
-#### Branched Example
+#### Branch & Consolidate Example
 ```mermaid
   graph LR;
+  subgraph RecordsWrite_C[RecordsWrite]
+    recordId_Write_C[recordId]
+  end
+  subgraph RecordsWrite_B[RecordsWrite]
+    recordId_Write_B[recordId] -.-> recordId_Write_C
+  end
   subgraph RecordsCommit_A2D[RecordsCommit A2-D]
-    recordId_Commit_A2D[recordId]
+    recordId_Commit_A2D[recordId] -.-> recordId_Write_B
     parentId_Commit_A2D[parentId]
   end
   subgraph RecordsCommit_A2C[RecordsCommit A2-C]
@@ -104,7 +108,7 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
     entryId_Commit_A2[entryId] --> parentId_Commit_A2B
   end
   subgraph RecordsCommit_C[RecordsCommit C]
-    recordId_Commit_C[recordId]
+    recordId_Commit_C[recordId] -.-> recordId_Write_B
     parentId_Commit_C[parentId]
   end
   subgraph RecordsCommit_B[RecordsCommit B]
@@ -123,4 +127,34 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
     entryId_Write_A[entryId] --> parentId_Commit_A1
     entryId_Write_A[entryId] --> parentId_Commit_A2
   end
+```
+
+## Type definitions
+```typescript
+
+type RecordsCommitDescriptor = {
+  interface: 'Records';
+  method: 'Commit';
+
+  // the `entryId` of the of the previous `RecordsWrite` or `RecordsCommit` ancestor in the record's lineage.
+  parentId: string;
+  // matches the commitStrategy of the RecordsWrite. Is this needed here if it exists on the Write? mostly to prevent issues?
+  commitStrategy: CommitStrategy;
+
+  // standard message data
+  dataCid: string;
+  dataSize: number;
+  messageTimestamp: string;
+  dataFormat: string;
+};
+
+type RecordsCommitMessage = {
+  // the record Id of the logical record
+  recordId: string
+  descriptor: RecordsCommitDescriptor;
+  attestation?: GeneralJws;
+  encryption?: EncryptionProperty;
+  authorization?: GeneralJws;
+};
+
 ```
