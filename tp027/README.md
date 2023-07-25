@@ -6,7 +6,7 @@ Title: RecordsCommit Interface
 Comments URI: TODO
 Status: Draft
 Created: July 21, 2023
-Updated: July 21, 2023
+Updated: July 25, 2023
 ```
 
 
@@ -18,9 +18,7 @@ Original references to DWN Spec:
 
 The `RecordsCommit` interface will allow the DWN to update records within a multi-writer environment.
 
-Currently two [Commit Strategies](https://identity.foundation/decentralized-web-node/spec/#commit-strategies) are supported.
-  - [JSON Patch - RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902)
-  - [JSON Merge Patch - RFC 7386](https://datatracker.ietf.org/doc/html/rfc7386)
+Currently two [Commit Strategies](#commit-strategies) are supported
 
 ## Lifecycle
 
@@ -29,31 +27,33 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
 - Create a `RecordsWrite` and set the `commitStrategy` descriptor field to one of the supported commit strategies.
 - Subsequent updates to this record can be either `RecordsWrite` or `RecordsCommit`.
   - `RecordsCommit` message must have the following:
-    - `recordId` that MUST be the `recordId` of the logical record the entry corrosponds with.
-    - `parentId` that MUST be the CID of the descriptor(`entryId`?) of the previous `RecordsWrite` or `RecordsCommit` ancestor in the record's lineage.
+    - `recordId` that MUST be the `recordId` of the logical record the entry corresponds with.
+    - `parentId` that MUST be `entryId` of the previous `RecordsWrite` or `RecordsCommit` ancestor in the record's lineage.
   - `RecordsWrite` message:
     - MAY set a new `commitStrategy`
+    - purges all previous `RecordsCommit` messages
     - creates a new starting point for subsequent `RecordsCommit` messages.
+- `RecordsRead` will still return a `RecordsWrite` as it does today.
+  - If `commitStrategy` is set you MAY preform a `RecordsQuery` to get a list of the commits which build on top of the `RecordsWrite` parent.
+- `RecordsQuery` without an additional `method` filter will return both `RecordsWrite` and `RecordsCommit` messages so that you can build up the current state of a record.
+  - Consider adding a `commitRoot` filter to `RecordsQuery` that will help querying all the `RecordsCommit` messages beginning at a `entryId` onward.
+  - Should this be a `RecordsCommitQuery` or some other separate type of query message for commits?
 
 
-## Considertions
+## Considerations
 - If the server receives a `RecordCommit` that doesn't match it's current state it will ignore it. If it is behind it will catch up via `sync`. 
-- If recieving multiple `RecordsCommit` messages which point to the same `parentId`, keep all of the potential tree paths until a `RecordsWrite` is made.
-- Many commits could requuire a lot of storage and bandwidth.
-- Schema/Permissions/Protocol rules are inherated from the `RecordsWrite` parent. 
+- If receiving multiple `RecordsCommit` messages which point to the same `parentId`, keep all of the potential tree paths until a `RecordsWrite` is made.
+- Many commits could require a lot of storage and bandwidth.
+- Some static methods from the `RecordsWrite` class can be generalized and moved to the `Records` helper class.
 
-## General Questions
+## Discussion Questions
+- Should `published` only be modifiable at the `RecordsWrite` message level?
+- How will this work with DataStreams?
 - Some properties are required for key derivation for each `RecordsCommit` message are copies from the root `RecordsWrite` message: `schema`, `protocol`, `protocolPath`, `contextId`, `dataFormat`.
   - Should these properties be explicit within the `RecordsCommit` descriptor?
-    - This would allow a bare `UnsigedRecordsCommitMessage` to have all of the info it needs to create the signatures without any need to access any other messages.
+    - This would allow a bare `UnsignedRecordsCommitMessage` to have all of the info it needs to create the signatures without any need to access any other messages.
     - **Although it currently doesn't have any conflict, if this is the route we go we should be careful of `parentId` as it's used differently between the two descriptors(Write and Commit).
-- How will this work with DataStreams?
 - Within the multi-writer `RecordsCommit` context, what responsibilities does the DWN have vs the Web5 SDK vs general application layer logic?
-- Potential For Querying:
-  - `RecordsRead` will still return a `RecordsWrite` as it does today.
-    - If `commitStrategy` is set for the user SHOULD preform a `RecordsQuery` to get a list of the commits which build on top of the `RecordsWrite` parent.
-  - `RecordsQuery` without an additional `method` filter will return both `RecordsWrite` and `RecordsCommit`
-  - Potentially Index and Query Commits given a particular `parentId`?
 
 
 ## Examples
@@ -133,6 +133,31 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
     entryId_Write_A[entryId] --> parentId_Commit_A2
   end
 ```
+## Permissions
+Protocol permissions for these messages are derived from the `RecordsWrite` message.
+
+Explicit grants can be created for `RecordsCommit`(??)
+
+## Messages
+### RecordsWrite
+There is now an optional field `commitStrategy` which can be set to one of the supported strategies. Once this field is set, subsequent `RecordsCommit` messages can be used to build on top of this message's state.
+### RecordsCommit
+A `RecordsCommit` allows an entity to create a tree of commits on top of a `RecordsWrite` using a given `commitStrategy`.
+
+The `RecordsCommit` descriptor contains a `parentId` field which points to the deterministic [`entryId`](https://github.com/TBD54566975/dwn-sdk-js/blob/cb6b21f75d19a644f62231cf27bc154ed73dad0e/src/interfaces/records-write.ts#L438) of the preceding `RecordsCommit` or `RecordsWrite` message.
+
+### RecordsQuery
+The `RecordsQuery` message will now return both `RecordsWrite` and `RecordsCommit` messages unless a specific `method` is set in the descriptor. 
+
+An additional `commitRoot` filter will be added. Setting this to an ancestor's `entryId` will return all subsequent `RecordsCommit` messages. ** this is a research item to see what this query looks like.
+
+
+## Commit Strategies
+From [DWN Spec](https://identity.foundation/decentralized-web-node/spec/#commit-strategies)
+| Name | Key | Spec | Description |
+|------|-----|------|-------------|
+| JSON Patch | `json-patch` | [RFC 6902](https://datatracker.ietf.org/doc/html/rfc6902) | delta-based JSON document patching
+| JSON Merge Patch | `json-merge` | [RFC 7386](https://datatracker.ietf.org/doc/html/rfc7386) | deep-merge modification strategy for JSON documents
 
 ## Type definitions
 ```typescript
@@ -146,17 +171,17 @@ type RecordsCommitDescriptor = {
   // matches the commitStrategy of the RecordsWrite. Is this needed here if it exists on the Write? mostly to prevent issues?
   commitStrategy: CommitStrategy;
 
-  //from RecordsWrite, used for key derivation:
+  //from parent RecordsWrite used for key derivation:
+  dataFormat: string;
   protocol?: string;
   protocolPath?: string;
   schema?: string;
-  contextId?: string;
+  contextId?: string; // contextId dependency for key derivation will be removed in https://github.com/TBD54566975/dwn-sdk-js/pull/452/files#diff-93bec3b5cd4732dbf5e87a5cb6b93f9a4622f7f77ea48e8d79276591af3c42c8L129
 
   // standard message data
   dataCid: string;
   dataSize: number;
   messageTimestamp: string;
-  dataFormat: string;
 };
 
 type RecordsCommitMessage = {
@@ -167,5 +192,10 @@ type RecordsCommitMessage = {
   encryption?: EncryptionProperty;
   authorization?: GeneralJws;
 };
+
+enum CommitStrategy {
+  JSONPatch = 'json-patch',
+  JSONMerge = 'json-merge'
+}
 
 ```
