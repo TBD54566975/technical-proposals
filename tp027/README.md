@@ -37,9 +37,11 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
 
 
 ## Considertions
- - Many commits could requuire a lot of storage and bandwidth.
- - Schema/Permissions/Protocol rules are inherated from the `RecordsWrite` parent. 
- - All potential leaves of the tree are stored until a subsequent `RecordsWrite` is made.
+- How to behave if the server receives a `RecordsCommit` which has a `parentId` that points to a `RecordsWrite` or `RecordsCommit` that the server hasnt recieved yet.
+  - Store the message in an `inbox` / `cache` with a TTL in case you receive the parent message?
+- If recieving multiple `RecordsCommit` messages which point to the same `parentId`, keep all of the potential tree paths until a `RecordsWrite` is made.
+- Many commits could requuire a lot of storage and bandwidth.
+- Schema/Permissions/Protocol rules are inherated from the `RecordsWrite` parent. 
 
 ## General Questions
  - How will this work with DataStreams?
