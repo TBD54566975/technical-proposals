@@ -44,13 +44,17 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
 - Schema/Permissions/Protocol rules are inherated from the `RecordsWrite` parent. 
 
 ## General Questions
- - How will this work with DataStreams?
- - Within the multi-writer `RecordsCommit` context, what responsibilities does the DWN have vs the Web5 SDK vs general application layer logic?
- - Potential For Querying:
-    - `RecordsRead` will still return a `RecordsWrite` as it does today.
-      - If `commitStrategy` is set for the user SHOULD preform a `RecordsQuery` to get a list of the commits which build on top of the `RecordsWrite` parent.
-    - `RecordsQuery` without an additional `method` filter will return both `RecordsWrite` and `RecordsCommit`
-    - Potentially Index and Query Commits given a particular `parentId`?
+- Some properties are required for key derivation for each `RecordsCommit` message are copies from the root `RecordsWrite` message: `schema`, `protocol`, `protocolPath`, `contextId`, `dataFormat`.
+  - Should these properties be explicit within the `RecordsCommit` descriptor?
+    - This would allow a bare `UnsigedRecordsCommitMessage` to have all of the info it needs to create the signatures without any need to access any other messages.
+    - **Although it currently doesn't have any conflict, if this is the route we go we should be careful of `parentId` as it's used differently between the two descriptors(Write and Commit).
+- How will this work with DataStreams?
+- Within the multi-writer `RecordsCommit` context, what responsibilities does the DWN have vs the Web5 SDK vs general application layer logic?
+- Potential For Querying:
+  - `RecordsRead` will still return a `RecordsWrite` as it does today.
+    - If `commitStrategy` is set for the user SHOULD preform a `RecordsQuery` to get a list of the commits which build on top of the `RecordsWrite` parent.
+  - `RecordsQuery` without an additional `method` filter will return both `RecordsWrite` and `RecordsCommit`
+  - Potentially Index and Query Commits given a particular `parentId`?
 
 
 ## Examples
