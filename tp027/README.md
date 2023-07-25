@@ -37,8 +37,7 @@ The general lifecycle of a `RecordsCommit` will follow these steps:
 
 
 ## Considertions
-- How to behave if the server receives a `RecordsCommit` which has a `parentId` that points to a `RecordsWrite` or `RecordsCommit` that the server hasnt recieved yet, or has deleted?
-  - Store the message in an `inbox` / `cache` with a TTL in case you receive the parent message?
+- If the server receives a `RecordCommit` that doesn't match it's current state it will ignore it. If it is behind it will catch up via `sync`. 
 - If recieving multiple `RecordsCommit` messages which point to the same `parentId`, keep all of the potential tree paths until a `RecordsWrite` is made.
 - Many commits could requuire a lot of storage and bandwidth.
 - Schema/Permissions/Protocol rules are inherated from the `RecordsWrite` parent. 
