@@ -23,15 +23,33 @@ Consider a chat application utilizing DWeb Nodes. When a user sends a message to
 a DWeb Node, all participants should receive notifications about the new message
 and be able to retrieve a unique recordId associated with the newly created
 record. This should have minimal latency, and be handled by a "push" rather than
-"pull" mechanic.
+"pull" mechanic. 
 
 This problem aims to ensure that subscribing to both local and remote DWeb Nodes
 is user-friendly and functional, facilitating real-time interactions and data
 retrieval.
 
+
+## Higher Level Interaction
+
+As an example of a higher level flow between Alice and Bob for subscriptions.
+
+``` mermaid
+sequenceDiagram
+  participant Alice
+  participant Bob
+  
+  Alice -->> Bob : Bob requests to subscribe to Alice's context. Implicitly requires read access.
+  note right of Alice: Alice grants Bob subscription access ( implicit read )
+  note right of Alice : event happens to Alice's DWN
+  Alice -->> Bob : event pushed to Bob's DWN subscription handler
+  note left of Bob: Bob handles subscription event
+```
+
 ## Proposal
 
-* Use a socket connection to listen in 
+* Subscription API imply a wrapper ReadRecord interface with additional PUSH mechanics.
+* Support two methods eventually: Web sockets and Web hooks
 
 ## Questions and Considerations
 
@@ -59,6 +77,69 @@ type SubscribeOptions = {
 web5.dwn.subscribe(opts: SubscribeOptions, async (message) => {
   // TODO: add stuff here for callbakc handling
 })
+```
+
+## Subscription Hooks
+
+In the context of the web hook paradigm, during an event update, only the
+'recordId' is shared with Bob. The primary processing responsibility lies with
+Alice. To ensure scalability, Alice will likely need to implement a queuing
+mechanism for effectively routing signals to various DWN's.
+
+Here's a clearer version of the steps you provided:
+
+1. Bob initiates a request to establish a subscription on Alice's DWN for a specific context.
+2. Alice has the option to either approve or reject the request.
+3. If the request is approved, Alice proceeds to install the subscription onto
+   her DWN. She then notifies Bob about the approval.
+4. Subsequently, Bob sets up the subscription on his DWN. This subscription is
+   designed to monitor a specific contextual event and trigger a callback
+   function whenever a new write event occurs within that context.
+5. The subscription is closely associated with a particular context within the
+DWN. Any event, along with its associated sub-events, is managed through a
+callback. If not customized, the default behavior of the callback is to write
+the event to Bob's DWN.
+
+``` mermaid
+sequenceDiagram
+  participant Bob
+  participant Alice
+  
+  Bob -->> Alice : installs subscription to Alice's DWN and Context
+  note right of Bob: Bob gives Alice write access to Subscription context
+  note right of Bob: Bob installs subscription listener to context with callback function.
+  note left of Alice : Alice registers subscription on DWN
+  note left of Alice : DWN event occurs
+  Alice -->> Bob : Alice sends event note to Bob with record id and context
+  Bob -->> Alice: Bob handles callback to new event.
+```
+
+The following shows the high level architecture for subscription
+
+```mermaid
+classDiagram
+
+  class Web5JS {
+    + subscribe(target, options, callback) // callback installed locally
+  }
+  
+  class InstallSubscriptionRequest {
+    string contextID
+    string did
+    config subscriptionConfiguration 
+  }
+  
+  class InstallSubscriptionResponse {
+    string subscriptionId
+  }
+
+  class SubscriptionAPI {
+    - handlers map<string, subscriptionHandler> 
+    install(request InstallSubscriptionRequest)
+    uninstall(id string)
+    getInboundSubscriptions() []string
+    getOutboundSubscriptions() []string
+  }
 ```
 
 ### DWN Server Updates
