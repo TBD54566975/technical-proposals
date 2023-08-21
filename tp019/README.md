@@ -161,21 +161,100 @@ Finally, to close the loop, not diagramed but worth noting for the complete life
 
 To reduce complexity, we will assume that the `author` of $C$ is also responsible for delegating the strategy for notifications. 
 
-Technically, the author will install a subscription $s_i$ in $C$ which is responsible for managing subscriptions. Subscription objects will be managed in separate special partition on a DWN. They will be mapped to a lookup, `contextID: s_i`, which that the key is based on the contextID. On an event $e_i$ to a context $C$, a lookup into the subscription partition is made. If it exists, subscription object is activated. To note: this will only activate with *fowarrd* events. I.e it is not built to back propogate to old events. 
+Technically, the author will install a subscription $s_i$ in $C$ which is responsible for managing subscriptions. Subscription objects will be managed in separate special partition on a DWN. They will be mapped to a lookup, `contextID: s_i`, which that the key is based on the contextID. On an event $e_i$ to a context $C$, a lookup into the subscription partition is made. If it exists, subscription object is activated. To note: this will only activate with *forward* events. I.e it is not built to back propogate to old events. 
 
-The following proposes a path forward on subscription events: 
-
-* Subscription API imply a wrapper ReadRecord interface with additional PUSH mechanics.
-* Support two methods eventually: Web sockets and Web hooks
-
-
-### Propogation Strategies
+## Propogation Strategies
 
 As described above, the `author` of $C$ is responsible for managing the propogation strategies of subscriptions. 
 
-#### Simple Case : Multi
+### Simple Case : Multiplexing Strategy
 
-In this c
+```mermaid
+graph TD
+  publisher
+  publisher --> A
+  publisher --> B
+  publisher --> C
+  publisher --> D
+  publisher --> E
+  publisher --> F
+  publisher --> G
+```
+**Advantages**
+
+* Simple to implement
+* Permissions are easier because relationship is already assumed between publisher and subscriber. 
+
+**Disadvantages**
+
+* Doesn't scale as well 
+
+### Nearest Neighbor Delegation 
+In the below propogation strategy, the publisher may delegate notifiations downstream to the network. 
+
+```mermaid
+graph TD
+  publisher
+  publisher --> A
+  publisher --> B
+  A --> C
+  A --> D
+  B --> E
+  B --> F
+  F --> G
+```
+
+**Advantages**
+
+* Scales Better
+
+**Disadvantages**
+
+* Requires more coordination
+
+## Notification Strategies
+
+The following section describes how notifications can be delivered to 
+
+### Web Sockets
+```mermaid
+graph TD
+    A -->|socket connection| B
+```
+
+```mermaid 
+sequenceDiagram
+  participant publisher
+  participant subscriber
+  
+  subscriber ->> publisher : subscribes to topic C. listens for message
+  publisher ->> subscriber : sends push to subscriber topic. 
+```
+
+Example message: 
+
+```
+{
+  recordId: <>.
+  contextId: <>,
+  type: "create"
+}
+```
+
+
+**Advantages**
+
+* Minimal operations
+
+**Disadvantages**
+
+* Requires active connections
+* Would need additional operatino t
+
+
+### DWN Notifications
+
+An alternative strategy involves writing to DWN's into a cached "queue", which allos for 
 
 
 
