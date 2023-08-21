@@ -1,11 +1,11 @@
-# TP19 Subscription Functionality
+# TP19 Pub/Sub 
 
 ```yaml
 TP: 19
 Title: TP19 - Subscription Functionality
 Authors: Andor Kesselman (@andorsk)
 Comments URI: https://github.com/TBD54566975/technical-proposals/discussions/6
-Status: Proposed
+Status: Drafting
 Created: August 16, 2023
 Updated: August 16, 2023
 ```
@@ -174,7 +174,7 @@ sequenceDiagram
 
 As you can see, in this proposed higher level flow, we have two main operations:
 
-1. **Registration of a Subscription with a particular context**: This is a $O(1)$, for each subscription participant. 
+1. **Registration of a Subscription with a particular context**: This is a $O(1)$, for each subscription participant, $O(N)$ for the set of subscribers. 
 2. **Notification on updates to a subscription**: The owner of $C$ must run notification operations at a $O(N)$, linearly scaling with the # of subscription nodes in in a context. Over the duration of a context, the number of notification operations are $O(N * len(R_1))$, or the number of nodes * the length of $R_1$ over time.
 
 Finally, to close the loop, not diagramed but worth noting for the complete life cycle, would be the death of a subscription, either by revocation or by deletion.
@@ -194,9 +194,50 @@ Finally, to close the loop, not diagramed but worth noting for the complete life
 
 ## Proposal
 
+I will break up the problem into three parts:
+
+1.  **Listening**: How does DWN user listen to activity in DWN bound by a contextId? 
+2. **Notification**: How does DWN user notify another DWN of $e$?  
+3. **Propogation**: How can $e$ be efficiently propogated through a network of subscribers : $S$ 
+
 To reduce complexity, we will assume that the `author` of $C$ is also responsible for delegating the strategy for notifications. 
 
 Technically, the author will install a subscription $s_i$ in $C$ which is responsible for managing subscriptions. Subscription objects will be managed in separate special partition on a DWN. They will be mapped to a lookup, `contextID: s_i`, which that the key is based on the contextID. On an event $e_i$ to a context $C$, a lookup into the subscription partition is made. If it exists, subscription object is activated. To note: this will only activate with *forward* events. I.e it is not built to back propogate to old events. 
+
+To Discuss: DWN Hooks 
+
+### Models
+
+```mermaid 
+classDiagram
+  class subscription {
+      callback
+  }
+  
+  class subscriptionLookup {
+    <<Dictionary>>
+    - dict: Map~string, Map string: Object~
+  }
+  
+  class hooks {  
+    onCreate()
+    onDelete()
+    onUpdate()
+    onRead()
+  }
+  
+  class dwn {
+    hooks
+    +subscribe(contextId)
+    +unsubscribe(contextId)
+  }
+  
+  class context
+    
+  subscription .. dwn : installed on
+  subscription "n".."1" context  : subscriptions are bound by context
+  
+```
 
 ## Propogation Strategies
 
@@ -279,11 +320,14 @@ graph TD
 **Advantages**
 
 * Will scale better
+* More resiliant
+* Can be optimized around latency 
 
 **Disadvantages**
 
 * Requires more coordination to avoid duplication of notifications.
 * Requires interaction bteween two unrelated DWN's, which in cases may not be desirable. 
+* Strategy required when node in the middle is down.  
 
 ## Notification Strategies
 
@@ -332,6 +376,7 @@ sequenceDiagram
   participant subscriber
   
   subscriber ->> publisher : subscribes to topic C. listens for message
+  note right of publisher: update to C happens
   publisher ->> subscriber : sends push to subscriber topic. 
   note left of subscriber: implements callback
 ```
@@ -342,7 +387,7 @@ Example message:
 {
   recordId: <>.
   contextId: <>,
-  type: "create"
+  action: "create"
 }
 ```
 
@@ -408,11 +453,40 @@ graph TD
 ```
 
 **Advantages**
-* Doesn't require active connections
+* Doesn't require actively maintaining connections
 
 **Disadvantages**
 * Needs to do more ops per event. Write, pull, etc. 
 * Cache can fill over time. 
+
+### Local Notifications
+
+We now need to think about the case where one DWN gets updated, but is synced to multiple DWNs. 
+
+```mermaid 
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
+graph TD
+  DWN1(dwn 1)
+  DWN2(dwn 2)
+  DWN1 --- |sycned| DWN2 --- |synced| DWN3(dwn 3)
+  
+  SubscriptionNotice(Subscription Notice) -->|dwn2 gets subscription notice| DWN2 
+ 
+```
+In this case, DWN2 MUST resolve propogation against registered syncs for local DWN. This can overlap with existing sync (every 2 min), OR send a push request to the other DWN's with a tied contextID to force the DWN to specifically sync against a particular context.
 
 
 
@@ -528,17 +602,25 @@ Insert code in
 Message processing events should be sent to a subscription queue of some sort. 
 
 ```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }%%
 graph TD
     subgraph Server
-        subscriptionRegistrationAPI --> subscriptionStore
-        Message --> handleDwnProcessMessage --> subscriptionQueueHandler 
-        handleDwnProcessMessage --> createJPCResponse
-        subscriptionQueueHandler --> subscriptionWorkers
-        --> notify
-        subscriptionQueueHandler -->|get subscriptions in job| subscriptionStore
+    
     end
     subgraph Client
-        web5js --> subscribe --> subscriptionRegistrationAPI 
+    
     end
 ```
 
