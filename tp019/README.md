@@ -69,8 +69,6 @@ graph TD
   A4 .->|notifies| Mallory
   ```
 
-In this case, all participants have the full thread context installed on their DWN. 
-
 ### Modeling the Problem
 
 We define $N$ as the nodes in the network. $C$ is an attached context for which each record $r_n$ in the set of records $\{r_0, r_1, ..., r_n\}\in{R}$ for which $N$ is subscribed to.
@@ -83,21 +81,42 @@ The goal of the subscriptions is to minimize $l$ for the set $R\prime$ such that
 
 ### Prior Art
 
-* https://news.ycombinator.com/item?id=34094497
-* https://www.intechopen.com/chapters/35703
-* https://www.sciencedirect.com/science/article/pii/S1389128623003213
-* https://eprints.whiterose.ac.uk/162348/1/09418552.pdf
+This section describes some prior art on decentralized pub/sub systems. 
+
+* [SCRIBE: A large-scale and decentralized
+publish-subscribe infrastructure](https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=eea6ef05a309cccbfe76806ab9f4f2b212f3264c) : Scribe creates a multi-cast tree similar to  to reverse path forwarding and traverses it via Pastry APIs. This is very useful for looking at some of the potential APIs required, as well as some architectural considerations. 
+* [Decentralized Message Ordering for
+Publish/Subscribe Systems](https://link.springer.com/chapter/10.1007/11925071_9) Message ordering at scale. Tasks are distributed across sequencing atoms. 
+* [
+Decentralized Publish-Subscribe System to Prevent Coordinated Attacks via Alert Correlation
+](https://link.springer.com/chapter/10.1007/978-3-540-30191-2_18) This was less considered, but worth looking into down the road. 
+* [UnifiedPush: a decentralized, open-source push notification protocol](https://f-droid.org/2022/12/18/unifiedpush.html) A reference architecutre of hybrid decentralized. Coordination servers are required, but open. 
+* [Analysis for flow termination in the decentralized and centralized pre-congestion notification architecture](https://www.sciencedirect.com/science/article/pii/S1389128623003213) Also not heavily considered in this, but possibly a useful reference for later.
+* [Decentralized Edge-to-Cloud Load Balancing:
+Service Placement for the Internet of Things](https://eprints.whiterose.ac.uk/162348/1/09418552.pdf) : Multi-agent load balancing. Useful for later. 
+
 
 ## Higher Level Interaction
 
 As an example of a proposed higher level 1:1 flow between Alice and Bob for subscriptions.
 
-In this interaction diagram Alice multiplexes new messages on the thread registered subscriptions. 
-
-
 **1:1 Subscription Event**
 
 ``` mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
 sequenceDiagram
   participant Alice
   participant Bob
@@ -114,9 +133,24 @@ sequenceDiagram
 
 **Multi-Party Subscription Event**
 
-In this case, all new messages must be broadcasted across multiple parties. 
+In this case, all new messages must be broadcasted across multiple parties. In this interaction diagram Alice multiplexes new messages on the thread registered subscriptions. 
+
 
 ``` mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
 sequenceDiagram
   participant Alice
   participant Bob
@@ -148,7 +182,7 @@ Finally, to close the loop, not diagramed but worth noting for the complete life
 ## Technical Considerations and Questions
 
 * Without a central coordinator, how do we propogate update events efficently to each DWN? 
-* How to handle correctly unavailable DNWs?
+* How to handle correctly unavailable DWNs?
 * How can we re-use as filters across repositories to avoid redundancy and allow
   for better user experience?
 * What is the right way to describe the subscription api?
@@ -156,6 +190,7 @@ Finally, to close the loop, not diagramed but worth noting for the complete life
 * Default behavior if no did is specified? 
 * How do we ensure users can only subscribe to the right options?
 * How do users control the subscriptions? What happens if there is a node with millions of subscriptions?
+* How do we handle unsubscriptions?
 
 ## Proposal
 
@@ -165,11 +200,27 @@ Technically, the author will install a subscription $s_i$ in $C$ which is respon
 
 ## Propogation Strategies
 
-As described above, the `author` of $C$ is responsible for managing the propogation strategies of subscriptions. 
+In this section, we define various propogation strategies for notification. As described above,the we define the `author` of $C$ synonymous with the `publisher` of $C$. The `author` of $C$ is responsible for managing the propogation strategies of subscriptions. 
 
 ### Simple Case : Multiplexing Strategy
 
+In this case, the author of $C$ is designated as the "publisher" of C, and thus is soley responsible for distributing updates from their DWN over a multiplexing strategy.
+
 ```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
 graph TD
   publisher
   publisher --> A
@@ -184,15 +235,36 @@ graph TD
 
 * Simple to implement
 * Permissions are easier because relationship is already assumed between publisher and subscriber. 
+* Coordination is easier.  
 
 **Disadvantages**
 
-* Doesn't scale as well 
+* Doesn't scale as well, as one DWN is responsible for $O(N * R)$ interactions.
 
-### Nearest Neighbor Delegation 
+### Delegation Propogation
+
 In the below propogation strategy, the publisher may delegate notifiations downstream to the network. 
 
+Neighbors may be chosen in a number of ways: 
+
+1. Predetermined neighbors chosen by publisher
+2. Dynamic Discovery : Requires knowing who the participants of the subscription are. 
+
 ```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
 graph TD
   publisher
   publisher --> A
@@ -206,29 +278,62 @@ graph TD
 
 **Advantages**
 
-* Scales Better
+* Will scale better
 
 **Disadvantages**
 
-* Requires more coordination
+* Requires more coordination to avoid duplication of notifications.
+* Requires interaction bteween two unrelated DWN's, which in cases may not be desirable. 
 
 ## Notification Strategies
 
-The following section describes how notifications can be delivered to 
+The following section describes how notifications can be delivered to the DWN endpoint via publishing. 
 
 ### Web Sockets
+
+In this case, the publisher and the suscriber hold an active socket connection between the two parties. The publisher can now push via web sockets on a topic to the subscriber. 
+
 ```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
 graph TD
-    A -->|socket connection| B
+    publisher -->|socket connection| subscriber
 ```
 
 ```mermaid 
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
 sequenceDiagram
   participant publisher
   participant subscriber
   
   subscriber ->> publisher : subscribes to topic C. listens for message
   publisher ->> subscriber : sends push to subscriber topic. 
+  note left of subscriber: implements callback
 ```
 
 Example message: 
@@ -244,17 +349,70 @@ Example message:
 
 **Advantages**
 
-* Minimal operations
+* Minimal operations. As the network scales, could be problematic. 
+* Fast ( nearly real time ) 
+
 
 **Disadvantages**
 
 * Requires active connections
-* Would need additional operatino t
+* Would need additional operations to handle backlogging.
 
 
 ### DWN Notifications
 
-An alternative strategy involves writing to DWN's into a cached "queue", which allos for 
+An alternative strategy involves writing to DWN's into a cached "queue", which allows for $n_i$ to pick up unresolved messages off the queue and interpret them. It would be a short term cache, and messages would eventually delete if not pulled off.  
+
+```mermaid 
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
+graph TD
+  subgraph Alice 
+      dwn
+      subgraph Subscription Cache
+          subgraph Context
+              s_1
+              s_2
+          end
+      end
+  end
+ 
+  subgraph Bob 
+      dwn2[dwn]
+      workers[subscription workers]
+      subgraph New Messages
+          queueAPI --> m1
+          subgraph New Message Queue
+              m1
+              m2
+          end
+      end
+      m1 -->|pull new messages off context and work| workers
+  end
+  
+  dwn2 -->|subscribes| dwn 
+  dwn --> |registered| s_2
+  dwn --> queueAPI
+```
+
+**Advantages**
+* Doesn't require active connections
+
+**Disadvantages**
+* Needs to do more ops per event. Write, pull, etc. 
+* Cache can fill over time. 
 
 
 
@@ -297,6 +455,20 @@ callback. If not customized, the default behavior of the callback is to write
 the event to Bob's DWN.
 
 ``` mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
 sequenceDiagram
   participant Bob
   participant Alice
@@ -313,16 +485,29 @@ sequenceDiagram
 The following shows the high level architecture for subscription
 
 ```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
 classDiagram
 
   class Web5JS {
-    + subscribe(target, options, callback) // callback installed locally
+    + subscribe(target, contextId, options, callback) // callback installed locally
+    + unsubscribe(target, contextId, options) // callback installed locally
   }
   
-  class InstallSubscriptionRequest {
-    string contextID
-    string did
-    config subscriptionConfiguration 
+  class dwn {
+    - publish(contextId, options)
   }
   
   class InstallSubscriptionResponse {
@@ -331,10 +516,8 @@ classDiagram
 
   class SubscriptionAPI {
     - handlers map<string, subscriptionHandler> 
-    install(request InstallSubscriptionRequest)
-    uninstall(id string)
-    getInboundSubscriptions() []string
-    getOutboundSubscriptions() []string
+    - install(request InstallSubscriptionRequest)
+    - uninstall(id string)
   }
 ```
 
