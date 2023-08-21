@@ -30,37 +30,138 @@ is user-friendly and functional, facilitating real-time interactions and data
 retrieval.
 
 
+```mermaid 
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'primaryColor': '#5097E6',
+      'background': '#fff',
+      'primaryTextColor': 'black',
+      'primaryBorderColor': 'black',
+      'lineColor': 'black',
+      'secondaryColor': 'white',
+      'tertiaryColor': '#fff'
+    }
+  }
+}%%
+graph TD
+  subgraph Thread
+      subgraph messages 
+        subgraph existingMessages
+         A1(A1)
+         A2(A2)
+         A3(A3)
+        end
+         A4(A4)
+      end
+      subgraph Participants
+          Alice(Alice)
+          Bob(Bob)
+          Charlie(Charlie)
+          Mallory(Mallory)
+      end
+  end
+  
+  Charlie -->|sends message| A4
+  A4 .->|notifies| Alice
+  A4 .->|notifies| Bob
+  A4 .->|notifies| Mallory
+  ```
+
+In this case, all participants have the full thread context installed on their DWN. 
+
+### Modeling the Problem
+
+We define $N$ as the nodes in the network. $C$ is an attached context for which each record $r_n$ in the set of records $\{r_0, r_1, ..., r_n\}\in{R}$ for which $N$ is subscribed to.
+
+We subset the spaces into two disjoint sets. $R_0$, which contains all synced events to a DWN context and $R_1$, which contains the set of new incoming events not yet synced. We define the $latency$ or $l_n$ as the time between the first write event to $C$ for $r_n$ and the time it takes to propogate the write to the rest of the thread contexts. 
+
+Unlike normal sync, which is scoped to improve latency for $R$, we confine the problem statement to only reducing latency for $R_1$.
+
+The goal of the subscriptions is to minimize $l$ for the set $R\prime$ such that the $lim_{l\to{0}}R$, contrained for the user $C$.
+
+### Prior Art
+
+* https://news.ycombinator.com/item?id=34094497
+* https://www.intechopen.com/chapters/35703
+* https://www.sciencedirect.com/science/article/pii/S1389128623003213
+
 ## Higher Level Interaction
 
-As an example of a higher level flow between Alice and Bob for subscriptions.
+As an example of a proposed higher level 1:1 flow between Alice and Bob for subscriptions.
+
+In this interaction diagram Alice multiplexes new messages on the thread registered subscriptions. 
+
+
+**1:1 Subscription Event**
 
 ``` mermaid
 sequenceDiagram
   participant Alice
   participant Bob
   
-  Alice -->> Bob : Bob requests to subscribe to Alice's context. Implicitly requires read access.
+  Bob -->> Alice : Bob requests to subscribe to Alice's context. Implicitly requires read access.
   note right of Alice: Alice grants Bob subscription access ( implicit read )
-  note right of Alice : event happens to Alice's DWN
+  Bob -->> Alice : Bob writes to Alice's DWN context.
+  note right of Alice : Alice listens to event
+  note right of Alice: Alice handles event
+
   Alice -->> Bob : event pushed to Bob's DWN subscription handler
   note left of Bob: Bob handles subscription event
 ```
 
-## Proposal
+**Multi-Party Subscription Event**
 
-* Subscription API imply a wrapper ReadRecord interface with additional PUSH mechanics.
-* Support two methods eventually: Web sockets and Web hooks
+In this case, all new messages must be broadcasted across multiple parties. 
 
-## Questions and Considerations
+``` mermaid
+sequenceDiagram
+  participant Alice
+  participant Bob
+  participant Charlie
 
+   Bob -->> Alice : Bob requests to subscribe to Alice's context. Implicitly requires read access.
+   note right of Alice: Alice grants Bob subscription access ( implicit read )
+
+   Charlie -->> Alice : Charlie requests to subscribe to Alice's context. Implicit read access.
+    note right of Alice: Alice grants Charlie subscription access ( implicit read 
+    
+  Bob -->> Alice : Bob writes to Alice's DWN context.
+  note right of Alice : Alice listens to event
+  note right of Alice: Alice handles event
+ 
+  Alice -->> Bob : event pushed to Bob's DWN subscription handler
+  note left of Bob: Bob handles subscription event
+  Alice -->> Charlie : event pushed to Bob's DWN subscription handler
+  note left of Charlie: Charlie handles subscription event
+```
+
+As you can see, in this proposed higher level flow, we have two main operations:
+
+1. **Registration of a Subscription with a particular context**: This is a $O(1)$, for each subscription participant. 
+2. **Notification on updates to a subscription**: The owner of $C$ must run notification operations at a $O(N)$, linearly scaling with the # of subscription nodes in in a context. Over the duration of a context, the number of notification operations are $O(N * len(R_1))$, or the number of nodes * the length of $R_1$ over time.
+
+Finally, to close the loop, not diagramed but worth noting for the complete life cycle, would be the death of a subscription, either by revocation or by deletion.
+
+## Technical Considerations and Questions
+
+* Without a central coordinator, how do we propogate update events efficently to each DWN? 
+* How to handle correctly unavailable DNWs?
 * How can we re-use as filters across repositories to avoid redundancy and allow
   for better user experience?
 * What is the right way to describe the subscription api?
 * How do we insert code at the point of behind validation?
 * Default behavior if no did is specified? 
 * How do we ensure users can only subscribe to the right options?
-* How do users control the subscriptions? What happens if there is a node with
-  millions of subscriptions?
+* How do users control the subscriptions? What happens if there is a node with millions of subscriptions?
+
+## Proposal
+
+The following proposes a path forward on subscription events: 
+
+* Subscription API imply a wrapper ReadRecord interface with additional PUSH mechanics.
+* Support two methods eventually: Web sockets and Web hooks
 
 ## Interfaces
 
