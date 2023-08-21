@@ -4,6 +4,7 @@
 TP: 19
 Title: TP19 - Subscription Functionality
 Authors: Andor Kesselman (@andorsk)
+Sponsored By: zion.fyi
 Comments URI: https://github.com/TBD54566975/technical-proposals/discussions/6
 Status: Drafting
 Created: August 16, 2023
