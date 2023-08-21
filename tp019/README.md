@@ -79,13 +79,14 @@ We subset the spaces into two disjoint sets. $R_0$, which contains all synced ev
 
 Unlike normal sync, which is scoped to improve latency for $R$, we confine the problem statement to only reducing latency for $R_1$.
 
-The goal of the subscriptions is to minimize $l$ for the set $R\prime$ such that the $lim_{l\to{0}}R$, contrained for the user $C$.
+The goal of the subscriptions is to minimize $l$ for the set $R\prime$ such that the $lim_{l\to{0}}R$, contrained for the user $C$. In aggregate across a network, a histogram of the latency values can be constructed to understand the performance over $N$.
 
 ### Prior Art
 
 * https://news.ycombinator.com/item?id=34094497
 * https://www.intechopen.com/chapters/35703
 * https://www.sciencedirect.com/science/article/pii/S1389128623003213
+* https://eprints.whiterose.ac.uk/162348/1/09418552.pdf
 
 ## Higher Level Interaction
 
@@ -158,10 +159,25 @@ Finally, to close the loop, not diagramed but worth noting for the complete life
 
 ## Proposal
 
+To reduce complexity, we will assume that the `author` of $C$ is also responsible for delegating the strategy for notifications. 
+
+Technically, the author will install a subscription $s_i$ in $C$ which is responsible for managing subscriptions. Subscription objects will be managed in separate special partition on a DWN. They will be mapped to a lookup, `contextID: s_i`, which that the key is based on the contextID. On an event $e_i$ to a context $C$, a lookup into the subscription partition is made. If it exists, subscription object is activated. To note: this will only activate with *fowarrd* events. I.e it is not built to back propogate to old events. 
+
 The following proposes a path forward on subscription events: 
 
 * Subscription API imply a wrapper ReadRecord interface with additional PUSH mechanics.
 * Support two methods eventually: Web sockets and Web hooks
+
+
+### Propogation Strategies
+
+As described above, the `author` of $C$ is responsible for managing the propogation strategies of subscriptions. 
+
+#### Simple Case : Multi
+
+In this c
+
+
 
 ## Interfaces
 
