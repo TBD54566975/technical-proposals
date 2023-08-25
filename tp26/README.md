@@ -32,7 +32,7 @@ There are three parties involved in this lifecycle who need to store a `Permissi
 3. The grantee, named in the `grantedTo` property. The grantee includes the grant in messages to the exposed DWN.
 In most scenarios, the DWN belongs to the grantor. However, for delegated grants, the DWN owner and the grantor are separate entities, so separate fields are necessary to differentiate them.
 
-Why is `grantedFor` needed? Consider the alternative. If `grantedFor` was not present, then it would be strange for the grantor and grantee to store the `PermissionsGrant` in their own DWN. The grantor's and grantee's DWNs would have no way to discern that "this grant is meant to give grantee access to someone else's DWN, not to give someone else access to mine." One option is for the grantor and grantee to store the grant in their respective web5 wallets. Storing in their DWN is better though, because their DWNs have built-in message validation and message validation.
+Why is `grantedFor` needed? If `grantedFor` were not present, it would be strange for the grantor and grantee to store the `PermissionsGrant` in their own DWN. The grantor's and grantee's DWNs would have no way to discern that "this grant is meant to give grantee access to someone else's DWN, not to give someone else access to mine." One option is for the grantor and grantee to store the grant in their respective web5 wallets. Storing in their DWN is better though, because their DWNs have built-in message storage and validation.
 
 
 ## Scope and Conditions
